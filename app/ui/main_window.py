@@ -1,9 +1,12 @@
 ﻿from PySide6.QtCore import Qt
 from PySide6.QtWidgets import *
+from PySide6.QtWidgets import QSizePolicy
+
 from app.config import settings
 from app.ui.panels.top_bar import TopBar
 from app.ui.panels.selection_panel import SelectionPanel
-from PySide6.QtWidgets import QSizePolicy
+from .views import MetricsEditorView
+
 
 class MainWindow(QMainWindow):
     """
@@ -62,8 +65,16 @@ class MainWindow(QMainWindow):
         vsep = QFrame(self); vsep.setObjectName("SideDivider"); vsep.setFrameShape(QFrame.VLine)
         row.addWidget(vsep)
 
-        # Área de trabajo (placeholder por ahora)
-        self.content = QWidget(self); self.content.setObjectName("ContentArea")
+        self.content = QWidget(self)
+        self.content.setObjectName("ContentArea")
+        content_layout = QVBoxLayout(self.content)
+        content_layout.setContentsMargins(8, 8, 8, 8)
+        content_layout.setSpacing(8)
+
+        # ---- Añadir la tarjeta del editor
+        self.metrics_view = MetricsEditorView(self.content)
+        content_layout.addWidget(self.metrics_view, 1)
+
         row.addWidget(self.content, 1)
 
         self.setCentralWidget(central)

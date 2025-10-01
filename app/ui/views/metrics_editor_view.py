@@ -186,13 +186,6 @@ class MetricsEditorView(QFrame):
                 print("❌ No se encontró el archivo de ensamble")
                 return
 
-        # Acceder al Skeleton dentro del ensamble
-        # skeleton = None
-        # for ref in self.asmDoc.ReferencedDocuments:
-        #     if "Skeleton Part.ipt" in ref.FullFileName:
-        #         skeleton = ref
-        #         break
-
         if self.skeleton_doc:
             params = self.skeleton_doc.ComponentDefinition.Parameters
             parametros = self.get_param_dict()

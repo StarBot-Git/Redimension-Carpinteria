@@ -24,6 +24,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(settings.APP_NAME)
         self.resize(settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT)
 
+        self.inventor = None
+
         # ======== Layout principal ========
 
         central = QWidget(self) # Contenedor principal
@@ -91,3 +93,20 @@ class MainWindow(QMainWindow):
         # ======== Inicialización | Widget central ========
 
         self.setCentralWidget(central)
+
+    def closeEvent(self, event) -> None:
+        try:
+            if hasattr(self.metrics_view, "inventor") and self.metrics_view.inventor:
+                # cierra docs primero para evitar diálogos
+                for doc in list(self.metrics_view.inventor.Documents):
+                    try:
+                        doc.Close(True)  # True = sin prompts
+                    except Exception:
+                        pass
+                # cierra Inventor
+                self.metrics_view.inventor.Quit()
+                print("✅ Inventor cerrado desde MainWindow")
+        except Exception as e:
+            print(f"⚠ No se pudo cerrar Inventor: {e}")
+        finally:
+            event.accept()

@@ -1,5 +1,7 @@
 import pyodbc, pandas as pd
 from sqlalchemy import create_engine
+from PySide6.QtWidgets import QMessageBox, QApplication
+import sys
 
 # Cadena de conexión a la base de datos SQL Server
 engine = create_engine(
@@ -13,16 +15,36 @@ class RepositoryDB:
         pass
 
     def fetch_model_types(self):
-        with engine.connect() as cn:
-            df = pd.read_sql("SELECT DISTINCT tipo_producto FROM dbo.productos ORDER BY tipo_producto;", cn)
+        try:
+            with engine.connect() as cn:
+                df = pd.read_sql("SELECT DISTINCT tipo_producto FROM dbo.productos ORDER BY tipo_producto;", cn)
 
-        return df['tipo_producto'].tolist()
+            return df['tipo_producto'].tolist()
+        except:
+            self.mostrar_error("Error al conectar con la base de datos.", "Verifica tu conexión a internet o contacta al administrador.") 
+
+            raise RuntimeError("No se pudo conectar con la base de datos")
 
     def fetch_models_by_type(self, model_type: str):
-        with engine.connect() as cn:
-            df = pd.read_sql(f"SELECT DISTINCT nombre_producto FROM dbo.productos WHERE tipo_producto = '{model_type}' ORDER BY nombre_producto;", cn)
-        
-        return df['nombre_producto'].tolist()
+        try:
+            with engine.connect() as cn:
+                df = pd.read_sql(f"SELECT DISTINCT nombre_producto FROM dbo.productos WHERE tipo_producto = '{model_type}' ORDER BY nombre_producto;", cn)
+            
+            return df['nombre_producto'].tolist()
+        except:
+            self.mostrar_error("Error al conectar con la base de datos.", "Verifica tu conexión a internet o contacta al administrador.") 
+
+            raise RuntimeError("No se pudo conectar con la base de datos")
+    
+    def mostrar_error(self, mensaje, detalle=None):
+        app = QApplication.instance() or QApplication(sys.argv)  # Reusar app si existe
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setWindowTitle("Error")
+        msg.setText(mensaje)
+        if detalle:
+            msg.setInformativeText(detalle)
+        msg.exec()   # Bloquea hasta que el usuario cierre
     
 # repo = RepositoryDB()
 # print(repo.fetch_model_types())

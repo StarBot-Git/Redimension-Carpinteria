@@ -6,6 +6,7 @@ from PySide6.QtGui import QStandardItemModel, QStandardItem, QPalette, QColor
 from PySide6.QtCore import Qt
 import win32com.client
 import os
+import pandas as pd
 
 class MetricsEditorView(QFrame):
     HEADERS = ["Parametro", "Valor", "Unidad"]
@@ -120,6 +121,59 @@ class MetricsEditorView(QFrame):
 
     def on_import_csv(self):
         print("Exportar despiece CSV")
+
+        data = []
+
+        # === Asegurarnos que el ensamble está abierto ===
+        asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
+
+        if os.path.exists(asm_path):
+            self.asmDoc = self.inventor.Documents.Open(asm_path)
+            print("✅ Ensamble abierto para importar")
+        else:
+            print("❌ No se encontró el archivo de ensamble")
+            return
+            
+        parametros_clave = ["Ancho", "Alto", "Espesor"]
+
+        for occ in self.asmDoc.ComponentDefinition.Occurrences:
+            partDoc = occ.Definition.Document
+            nombre = partDoc.DisplayName
+
+            print(f"\n📦 Componente: {nombre}")
+
+            fila = {"Componente": nombre}
+
+            try:
+                params = partDoc.ComponentDefinition.Parameters
+                for clave in parametros_clave:
+                    try:
+                        fila[clave] = params.Item(clave).Value*10  # Convertir cm a mm
+                    except:
+                        fila[clave] = None  # Si no existe, lo dejamos vacío
+            except:
+                # Si no hay parámetros, dejamos todo en None
+                for clave in parametros_clave:
+                    fila[clave] = None
+            
+            data.append(fila)
+
+        # Convertir a DataFrame
+        df = pd.DataFrame(data)
+        output_csv = r"C:\Users\autom\Desktop\CARPINTERIA\Redimensionador - APP\despiece.csv"
+
+        # Forzar columnas en orden aunque falte alguna
+        for clave in ["Componente"] + parametros_clave:
+            if clave not in df.columns:
+                df[clave] = None
+
+        df = df[["Componente"] + parametros_clave]
+
+        # Guardar
+        df.to_excel(output_csv.replace(".csv", ".xlsx"), index=False)
+        #df.to_csv(output_csv, index=False)
+
+        print(f"Archivo generado en: {output_csv}")
 
     def on_save_changes(self):
         # Asegurarnos que el ensamble está abierto

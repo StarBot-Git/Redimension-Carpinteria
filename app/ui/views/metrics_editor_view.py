@@ -1,13 +1,14 @@
 from PySide6.QtWidgets import (
     QFrame, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QTableView
+    QLineEdit, QPushButton, QTableView, QSizePolicy, QHeaderView
 )
-from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtGui import QStandardItemModel, QStandardItem, QPalette, QColor
 from PySide6.QtCore import Qt
-
+import win32com.client
+import os
 
 class MetricsEditorView(QFrame):
-    HEADERS = ["Parametro", "Pieza", "Valor", "Unidad"]
+    HEADERS = ["Parametro", "Valor", "Unidad"]
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -78,9 +79,15 @@ class MetricsEditorView(QFrame):
         self.model = QStandardItemModel(0, len(self.HEADERS), self) # 0 filas, n columnas
         self.model.setHorizontalHeaderLabels(self.HEADERS) # Encabezados de columnas
         self.view.setModel(self.model)
-        self.view.horizontalHeader().setStretchLastSection(True) # Ultima columna estirada
-        self.view.verticalHeader().setVisible(False) # Ocultar encabezado vertical
-        #self._populate_demo()  # 3 filas
+
+        # Oculta header vertical y quita corner
+        self.view.verticalHeader().setVisible(False)
+        self.view.setCornerButtonEnabled(False)
+
+        # La vista debe poder expandirse
+        self.view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        self._apply_header_bounds()
 
     """
         set_model_name:
@@ -97,7 +104,16 @@ class MetricsEditorView(QFrame):
     # ---------- Buttons ----------
 
     def on_view_model(self):
-        print("Ver modelo")
+        asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
+        if os.path.exists(asm_path):
+            self.asmDoc = self.inventor.Documents.Open(asm_path)
+            print("✅ Ensamble CUERPO abierto")
+        else:
+            print("❌ No se encontró el archivo de ensamble")
+            return
+
+        # === Mostrar Inventor y traerlo al frente ===
+        self.inventor.Visible = True
 
     def on_view_drawings(self):
         print("Ver planos")
@@ -106,45 +122,175 @@ class MetricsEditorView(QFrame):
         print("Exportar despiece CSV")
 
     def on_save_changes(self):
-        print("Guardar cambios")
+        # Asegurarnos que el ensamble está abierto
+        asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
+        if not hasattr(self, "asmDoc") or self.asmDoc is None:
+            if os.path.exists(asm_path):
+                self.asmDoc = self.inventor.Documents.Open(asm_path)
+                print("✅ Ensamble abierto para guardar")
+            else:
+                print("❌ No se encontró el archivo de ensamble")
+                return
+
+        # Acceder al Skeleton dentro del ensamble
+        # skeleton = None
+        # for ref in self.asmDoc.ReferencedDocuments:
+        #     if "Skeleton Part.ipt" in ref.FullFileName:
+        #         skeleton = ref
+        #         break
+
+        if self.skeleton_doc:
+            params = self.skeleton_doc.ComponentDefinition.Parameters
+            parametros = self.get_param_dict()
+
+            for nombre, valor in parametros.items():
+                try:
+                    params.Item(nombre).Value = valor/10  # Convertir mm a cm
+                    print(f"✅ Parámetro '{nombre}' actualizado a {valor}")
+                except Exception as e:
+                    print(f"❌ Error en '{nombre}': {e}")
+
+            # Propagar cambios
+            self.skeleton_doc.Update()
+            self.asmDoc.Update()
+
+            self.inventor.SilentOperation = True  
+            self.asmDoc.Save()
+
+            for ref in self.asmDoc.ReferencedDocuments:
+                try:
+                    if ref.Dirty:
+                        ref.Save()
+                except Exception as e:
+                    print(f"No se pudo guardar {ref.FullFileName}: {e}")
+            print("💾 Cambios guardados en ensamble y dependencias")
+
+            self.inventor.SilentOperation = False 
+
+    def _parse_number(self, v):
+        """Convierte el valor de la celda a float si se puede (soporta '1,23')."""
+        if isinstance(v, (int, float)):
+            return float(v)  # Convertir cm a mm
+        s = str(v).strip()
+        if not s:
+            return None
+        try:
+            return float(s.replace(",", "."))  # 1,23 -> 1.23
+        except ValueError:
+            return None  # o devuelve s si prefieres preservar cadenas
+
+    def get_rows(self) -> list[dict]:
+        """Devuelve todas las filas como lista de dicts con las llaves que usamos en la UI."""
+        rows = []
+        for r in range(self.model.rowCount()):
+            rows.append({
+                "Parametro": self.model.item(r, 0).text().strip() if self.model.item(r, 0) else "",
+                "Valor":     self.model.item(r, 1).text().strip() if self.model.item(r, 1) else "",
+                "Unidad":    self.model.item(r, 2).text().strip() if self.model.item(r, 2) else "",
+            })
+        return rows
+
+    def get_param_dict(self) -> dict[str, float | None]:
+        """
+        Devuelve { PARAMETRO: VALOR } para usarlo igual que tu 'parametros' del Excel.
+        Si un valor no es numérico o está vacío, deja None (ajústalo si prefieres otra cosa).
+        """
+        d = {}
+        for r in range(self.model.rowCount()):
+            name_item = self.model.item(r, 0)
+            val_item  = self.model.item(r, 1)
+            if not name_item:
+                continue
+            name = name_item.text().strip()
+            val  = self._parse_number(val_item.text() if val_item else "")
+            if name:
+                d[name] = val
+        return d
     
     # ---------- Table Setup ----------
 
+    def _apply_header_bounds(self):
+        h = self.view.horizontalHeader()
+        h.setStretchLastSection(False)
+        h.setMinimumSectionSize(40)
+        h.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # alineación del texto del header
+
+        h.setSectionResizeMode(0, QHeaderView.Stretch)           # Parametro ocupa espacio libre
+        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Valor al contenido
+        h.setSectionResizeMode(2, QHeaderView.Fixed)             # Unidad fijo
+        self.view.setColumnWidth(2, 72)
+
     def set_rows(self, rows: list[dict]):
         """
-        rows: [{"Parametro": str, "Pieza": str, "Valor": any, "Unidad": str}, ...]
+        rows: [{"Parametro": str, "Valor": any, "Unidad": str}, ...]
         """
         self.model.removeRows(0, self.model.rowCount())
         
         for r in rows:
             self._append_row(
                 r.get("Parametro",""),
-                r.get("Pieza",""),
                 r.get("Valor",""),
                 r.get("Unidad","mm"),
             )
         
         self.view.resizeColumnsToContents()
 
-    # ---------- Interno ----------
-    def _populate_demo(self):
-        demo = [
-            ("Height", "Pieza1", 800, "mm"),
-            ("Width",  "Pieza2", 300, "mm"),
-            ("Depth",  "Pieza3", 200, "mm"),
-        ]
-        for row in demo:
-            self._append_row(*row)
-        self.view.resizeColumnsToContents()
+        self._apply_header_bounds() 
 
-    def _append_row(self, param, piece, value, unit):
+    # ---------- Inventor Model Integration ----------
+
+    def load_inventor_model(self, model_path: str):
+        print(f"Cargando modelo de Inventor desde: {model_path}")
+
+            # === Conexion con Inventor ===
+
+        self.inventor = win32com.client.Dispatch("Inventor.Application")
+        self.inventor.Visible = False  # No mostrar la ventana de Inventor inicialmente
+
+        # === Apertura Skeleton Part ===
+        self.model_path = model_path
+        skeleton_path = f"{model_path}\\Skeleton Part.ipt"
+
+        if os.path.exists(skeleton_path):
+            print(f"✅ Skeleteon abierto")
+            self.skeleton_doc = self.inventor.Documents.Open(skeleton_path)
+        else:
+            print(f"❌ No se encontró el archivo Skeleton del modelo")
+            return
+        
+        params = self.skeleton_doc.ComponentDefinition.Parameters        
+
+        print("Parámetros del modelo:")
+        for param in params:
+            print(f"- {param.Name}: {param.Value} {param.Units}")
+
+
+        rows = []
+        for p in params:
+            nombre = getattr(p, "Name", None) or getattr(p, "name", "")
+            valor  = getattr(p, "Value", None) or getattr(p, "value", "")
+            unidad = getattr(p, "Units", None) or getattr(p, "units", "")
+
+            if nombre == "OFFSET_DIVISION_1":
+                continue
+
+            if isinstance(valor, (int, float)):
+                valor = valor * 10
+
+            rows.append({
+                "Parametro": str(nombre),
+                "Valor": valor,
+                "Unidad": unidad,
+            })
+        return rows
+
+    def _append_row(self, param, value, unit):
         items = [
             QStandardItem(str(param)),        # read-only
-            QStandardItem(str(piece)),        # editable
             QStandardItem(str(value)),        # editable
             QStandardItem(str(unit)),         # read-only
         ]
         # Marcar Min/Max como no editables
-        for idx in (0, 1, 3):
+        for idx in (0, 2):
             items[idx].setEditable(False)
         self.model.appendRow(items)

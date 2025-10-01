@@ -1,5 +1,6 @@
 from PySide6.QtCore import QObject
 from app.services.repository_DB import RepositoryDB
+import os
 
 class SelectionPanelController(QObject):
 
@@ -58,8 +59,8 @@ class SelectionPanelController(QObject):
             self._load_comboBox(self.sp._model, ["Select model"])
         else: # === Carga de modelos ===
 
-            #models = self.repo.fetch_models_by_type(text) # Carga de modelos
-            models = ["Model A", "Model B", "Model C"] # Simulación de carga de modelos
+            models = self.repo.fetch_models_by_type(text) # Carga de modelos
+            #models = ["Model A", "Model B", "Model C"] # Simulación de carga de modelos
             self._load_comboBox(self.sp._model, ["Select model"] + models)
         
         # === Actualziacion de breadcrumbs | TopBar ===
@@ -97,6 +98,20 @@ class SelectionPanelController(QObject):
         self.win.metrics_view.btn_Model.setEnabled(bool(m))
         self.win.metrics_view.btn_Drawings.setEnabled(bool(m))
         self.win.metrics_view.btn_Import.setEnabled(bool(m))
+        self.win.metrics_view.btn_Save.setEnabled(bool(m))
+
+        # === Busqueda y carga del modelo | MetricsEditorView ===
+
+        if m:
+            model_Path = f"C:\\Users\\autom\\Desktop\\CARPINTERIA\\Inventor - Modelos - Prueba\\{self.sp._model.currentText()}" # Ruta base de modelos
+
+            if os.path.exists(model_Path):
+                rows = self.win.metrics_view.load_inventor_model(model_Path) # Cargar modelo en MetricsEditorView
+
+                self.win.metrics_view.set_rows(rows) 
+            else:
+                print(f"❌ La ruta {model_Path} no existe")
+
 
     """
         _load_comboBox:

@@ -123,11 +123,22 @@ QToolBar {
   color: #111111;
 }
 
-/* Header */
-QHeaderView::section {
+#MetricsTable QHeaderView {
+  background: #f9fafb;
+  border: none;
+}
+
+/* Secciones horizontales (títulos de columnas) */
+#MetricsTable QHeaderView::section:horizontal {
   background: #f9fafb;
   padding: 6px 8px;
-  color: #000000;
   border: 1px solid #e5e7eb;
   font-weight: 600;
+  color: #111111;
+}
+
+/* Botón de esquina arriba-izquierda (por si algo lo pinta) */
+QTableCornerButton::section {
+  background: #f9fafb;   /* o transparent */
+  border: 1px solid #e5e7eb; /* o none */
 }

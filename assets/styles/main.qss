@@ -113,7 +113,8 @@ QToolBar {
 /* Tabla */
 #MetricsTable {
   gridline-color: #e5e7eb;
-  background: #ffffff;
+  background: #ffffffff;
+  color: #000000;
   alternate-background-color: #fafafa;
 }
 
@@ -126,6 +127,7 @@ QToolBar {
 QHeaderView::section {
   background: #f9fafb;
   padding: 6px 8px;
+  color: #000000;
   border: 1px solid #e5e7eb;
   font-weight: 600;
 }

@@ -6,6 +6,8 @@ from app.config import settings
 from app.ui.panels.top_bar import TopBar
 from app.ui.panels.selection_panel import SelectionPanel
 from .views import MetricsEditorView
+from app.controllers.panel_selection_controller import SelectionPanelController
+from app.services.repository_DB import RepositoryDB
 
 
 class MainWindow(QMainWindow):
@@ -15,7 +17,6 @@ class MainWindow(QMainWindow):
       - TopBar (chrome)
       - Sidebar fijo (panel de selección)
       - Área de contenido (QStackedWidget con vistas dinámicas)
-      - StatusBar
     """
 
     def __init__(self) -> None:
@@ -23,47 +24,56 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(settings.APP_NAME)
         self.resize(settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT)
 
-        central = QWidget(self); central.setObjectName("central")
-        root = QVBoxLayout(central); root.setContentsMargins(0,0,0,0); root.setSpacing(0)
+        # ======== Layout principal ========
 
-        # TopBar
-        self.topbar = TopBar(self)
+        central = QWidget(self) # Contenedor principal
+        central.setObjectName("central") 
+
+        root = QVBoxLayout(central) # Contenedor raiz
+        root.setContentsMargins(0,0,0,0)
+        root.setSpacing(0)
+
+        # ======== Top Bar ========
+
+        self.topbar = TopBar(self) # Barra superior | .py externo
         self.topbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.topbar.setFixedHeight(60)
+        self.topbar.setFixedHeight(80)
         root.addWidget(self.topbar)
-        divider = QFrame(self); divider.setObjectName("TopDivider"); divider.setFrameShape(QFrame.HLine)
+
+        # ========= Separador horizontal  | Decorativo ========
+
+        divider = QFrame(self)
+        divider.setObjectName("TopDivider")
+        divider.setFrameShape(QFrame.HLine)
         root.addWidget(divider)
 
-        # --- Row: Sidebar (fixed) + Content (expand) ---
-        row = QHBoxLayout(); row.setContentsMargins(16,16,16,16); row.setSpacing(16)
+        # ======== Contenedor | Sidebar + Content ========
+            # - Sidebar (panel de selección)
+            # - Separador vertical (decorativo)
+            # - Content (vista dinámica)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(16,16,16,16)
+        row.setSpacing(16)
         root.addLayout(row)
 
-        self.sidebar = SelectionPanel(self)
-        self.sidebar.setFixedWidth(285)  # ancho del panel
+        # ========= Sidebar (panel de selección) ========
 
-        self._models_by_type = {
-            "Cocina": ["CL-800", "CL-1200", "CL-1600"],
-            "Baño": ["BN-600", "BN-800"],
-            "Oficina": ["OF-1200", "OF-1600", "OF-2XX2"],
-        }
-        self._materials = ["MDF 15 mm", "MDF 18 mm", "Melamine 15 mm", "Plywood 18 mm"]
-        self._edges     = ["ABS 0.45 mm", "PVC 1.0 mm", "PVC 2.0 mm"]
+        self.sidebar = SelectionPanel(self) # Panel Lateral | .py externo
+        self.sidebar.setFixedWidth(285)
 
-        # Poblado inicial
-        self._seed_options()
-
-        # Conexiones (cuando el usuario cambia)
-        self.sidebar._model_Type.currentTextChanged.connect(self.on_model_type_changed)
-        self.sidebar._model.currentTextChanged.connect(self.update_breadcrumbs)
-        self.sidebar._material.currentTextChanged.connect(self.update_breadcrumbs)
-        self.sidebar._edge.currentTextChanged.connect(self.update_breadcrumbs)
-        self.update_breadcrumbs()
+        self.DB = RepositoryDB() # Instancia de conexion a base de datos
+        self._SelectionPanelController = SelectionPanelController(self, self.DB) # Controlador del panel de selección
+        self._SelectionPanelController.Start_SP() # Cargar datos iniciales proveniente de la base de datos
 
         row.addWidget(self.sidebar, 0, Qt.AlignTop)
 
-        # separador vertical sutil (opcional)
+        # ========= Separador vertical | Decorativo ========
+
         vsep = QFrame(self); vsep.setObjectName("SideDivider"); vsep.setFrameShape(QFrame.VLine)
         row.addWidget(vsep)
+
+        # ========= Contenedor formulario ========
 
         self.content = QWidget(self)
         self.content.setObjectName("ContentArea")
@@ -71,48 +81,13 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(8, 8, 8, 8)
         content_layout.setSpacing(8)
 
-        # ---- Añadir la tarjeta del editor
+        # ========= Vista de formulario (MetricsEditorView) ========
+
         self.metrics_view = MetricsEditorView(self.content)
         content_layout.addWidget(self.metrics_view, 1)
 
         row.addWidget(self.content, 1)
 
+        # ======== Inicialización | Widget central ========
+
         self.setCentralWidget(central)
-
-    def _set_items(self, combo, items):
-        combo.blockSignals(True)
-        combo.clear()
-        combo.addItems(items)
-        combo.blockSignals(False)
-
-    def _seed_options(self):
-        sp = self.sidebar
-        self._set_items(sp._model_Type, ["Select model type"] + list(self._models_by_type.keys()))
-        self._set_items(sp._model,      ["Select model"])
-        self._set_items(sp._material,   ["Select material"] + self._materials)
-        self._set_items(sp._edge,       ["Select edge band"] + self._edges)
-
-    def on_model_type_changed(self, text: str):
-        if not text or text.startswith("Select"):
-            self._set_items(self.sidebar._model, ["Select model"])
-        else:
-            models = self._models_by_type.get(text, [])
-            self._set_items(self.sidebar._model, ["Select model"] + models)
-        self.update_breadcrumbs()
-
-    def _clean_piece(self, s: str, prefix: str) -> str:
-        if not s or s.startswith(prefix):
-            return ""
-        return s
-
-    def update_breadcrumbs(self):
-        # Products > <Model Type> > <Model>
-        t = self._clean_piece(self.sidebar._model_Type.currentText(), "Select")
-        m = self._clean_piece(self.sidebar._model.currentText(), "Select")
-
-        parts = ["Products"]
-        if t: parts.append(t)
-        if m: parts.append(m)
-        self.topbar.set_breadcrumbs(parts)
-
-

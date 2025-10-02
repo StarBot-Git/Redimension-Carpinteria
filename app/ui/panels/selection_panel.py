@@ -41,7 +41,7 @@ class SelectionPanel(QWidget):
         self._material = self._field(wrap, "Material:", ["Material..."])
         self._edge = self._field(wrap, "Tipo de canto:", ["Tipo de canto..."])
 
-        wrap.setSpacing(20)
+        wrap.setSpacing(15)
         wrap.addStretch(1)  
 
     def _field(self, parent_layout: QVBoxLayout, label_text: str, items: list[str]) -> QComboBox:

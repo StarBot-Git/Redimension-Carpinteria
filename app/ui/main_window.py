@@ -1,30 +1,22 @@
 ﻿from PySide6.QtCore import Qt
 from PySide6.QtWidgets import *
-from PySide6.QtWidgets import QSizePolicy
 
-from app.config import settings
+# ====== Librerias propias ======
+
 from app.ui.panels.top_bar import TopBar
 from app.ui.panels.selection_panel import SelectionPanel
-from .views import MetricsEditorView
+from app.ui.views import MetricsEditorView
 from app.controllers.panel_selection_controller import SelectionPanelController
 from app.services.repository_DB import RepositoryDB
-
+from app.config import settings
 
 class MainWindow(QMainWindow):
-    """
-    Shell de la aplicación: por ahora solo un contenedor vacío.
-    Más adelante aquí montamos:
-      - TopBar (chrome)
-      - Sidebar fijo (panel de selección)
-      - Área de contenido (QStackedWidget con vistas dinámicas)
-    """
-
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(settings.APP_NAME)
         self.resize(settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT)
 
-        self.inventor = None
+        self.inventor = None # Variable Inventor
 
         # ======== Layout principal ========
 
@@ -39,7 +31,7 @@ class MainWindow(QMainWindow):
 
         self.topbar = TopBar(self) # Barra superior | .py externo
         self.topbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.topbar.setFixedHeight(70)
+        self.topbar.setFixedHeight(50)
         root.addWidget(self.topbar)
 
         # ========= Separador horizontal  | Decorativo ========
@@ -65,6 +57,7 @@ class MainWindow(QMainWindow):
         self.sidebar.setFixedWidth(285)
 
         self.DB = RepositoryDB() # Instancia de conexion a base de datos
+
         self._SelectionPanelController = SelectionPanelController(self, self.DB) # Controlador del panel de selección
         self._SelectionPanelController.Start_SP() # Cargar datos iniciales proveniente de la base de datos
 
@@ -94,18 +87,27 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central)
 
+    """
+        closeEvent():
+
+        Funcion que se ejecuta al cerrar la ventana principal. Aquí se maneja el cierre de Inventor si está abierto.
+    """
     def closeEvent(self, event) -> None:
         try:
+            # === Verificar y cerrar Inventor si está abierto ===
             if hasattr(self.metrics_view, "inventor") and self.metrics_view.inventor:
-                # cierra docs primero para evitar diálogos
+
+                # === cierra todos los documentos abiertos sin guardar ===
                 for doc in list(self.metrics_view.inventor.Documents):
                     try:
-                        doc.Close(True)  # True = sin prompts
+                        doc.Close(True) # Sin prompts
                     except Exception:
                         pass
-                # cierra Inventor
+                
+                # === cierra Inventor ===
                 self.metrics_view.inventor.Quit()
                 print("✅ Inventor cerrado desde MainWindow")
+
         except Exception as e:
             print(f"⚠ No se pudo cerrar Inventor: {e}")
         finally:

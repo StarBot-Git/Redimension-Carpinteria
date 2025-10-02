@@ -2,15 +2,20 @@ from PySide6.QtWidgets import (
     QFrame, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QTableView, QSizePolicy, QHeaderView
 )
-from PySide6.QtGui import QStandardItemModel, QStandardItem, QPalette, QColor
+from PySide6.QtGui import QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon
 import win32com.client
 import os
 import pandas as pd
+from pathlib import Path
 
 class MetricsEditorView(QFrame):
+    # ======== Headers | Tabla metrica ========
     HEADERS = ["Parametro", "Valor", "Unidad"]
+
+    # ======== Parametros de salida | Despiece ========
+    PARAMETROS_SALIDA = ["Ancho", "Alto", "Espesor"]
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -71,6 +76,7 @@ class MetricsEditorView(QFrame):
         actions.addStretch(1)
         actions.addWidget(self.btn_Load)
         actions.addWidget(self.btn_Save)
+
         root.addLayout(actions)
 
         # ======== Tabla de metricas ========
@@ -82,12 +88,13 @@ class MetricsEditorView(QFrame):
         self.view.setSortingEnabled(False) # Deshabilitar permisos de ordenamiento
         root.addWidget(self.view, 1)
 
-        
+        # - Modelo | Tabla metrica -
+
         self.model = QStandardItemModel(0, len(self.HEADERS), self) # 0 filas, n columnas
         self.model.setHorizontalHeaderLabels(self.HEADERS) # Encabezados de columnas
         self.view.setModel(self.model)
 
-        # Oculta header vertical y quita corner
+        # Oculta header vertical y quita boton de esquina
         self.view.verticalHeader().setVisible(False)
         self.view.setCornerButtonEnabled(False)
 
@@ -95,23 +102,27 @@ class MetricsEditorView(QFrame):
         self.view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.view.setMouseTracking(True)
 
+        # Aplicar estilo base
         self._apply_header_bounds()
 
+
+
     """
-        set_model_name:
+        set_model_name():
 
         Actualiza el título del MetricsEditorView con el nombre del modelo seleccionado.
     """
-
     def set_model_name(self, model_name: str):
         if model_name:
-            self.title.setText(f"Editor de metricas - Modelo: {model_name}")
+            self.title.setText(f"Editor de metricas - {model_name}")
         else:
             self.title.setText("Editor de metricas")
 
     # ---------- Buttons ----------
 
     def set_Button_Style(self, button: QPushButton, icon_path: str = ""):
+
+        # === Estilo base | Button ===
         button.setObjectName("Button_Style")
         button.setEnabled(False)
         button.setMinimumHeight(32)
@@ -122,73 +133,79 @@ class MetricsEditorView(QFrame):
             button.setIconSize(QSize(16, 16))  
 
     def on_view_model(self):
+
+        # === Verificacion | assembler document ===
         asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
+        
         if os.path.exists(asm_path):
+
             self.asmDoc = self.inventor.Documents.Open(asm_path)
             print("✅ Ensamble CUERPO abierto")
         else:
+
             print("❌ No se encontró el archivo de ensamble")
             return
 
-        # === Mostrar Inventor y traerlo al frente ===
+        # === Mostrar Inventor ===
         self.inventor.Visible = True
 
     def on_view_drawings(self):
         print("Ver planos")
 
     def on_import_csv(self):
-        print("Exportar despiece CSV")
+        data = [] # Tabla de salida
 
-        data = []
-
-        # === Asegurarnos que el ensamble está abierto ===
+        # === Verificar | Ensamble abierto ===
         asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
 
         if os.path.exists(asm_path):
+
             self.asmDoc = self.inventor.Documents.Open(asm_path)
             print("✅ Ensamble abierto para importar")
         else:
+
             print("❌ No se encontró el archivo de ensamble")
             return
-            
-        parametros_clave = ["Ancho", "Alto", "Espesor"]
-
+        
+        # === Extraccion de parametros por pieza ===
         for occ in self.asmDoc.ComponentDefinition.Occurrences:
             partDoc = occ.Definition.Document
             nombre = partDoc.DisplayName
 
-            print(f"\n📦 Componente: {nombre}")
+            print(f"📦 Componente: {nombre}")
 
             fila = {"Componente": nombre}
 
             try:
                 params = partDoc.ComponentDefinition.Parameters
-                for clave in parametros_clave:
+
+                for clave in self.PARAMETROS_SALIDA:
+
                     try:
                         fila[clave] = params.Item(clave).Value*10  # Convertir cm a mm
                     except:
-                        fila[clave] = None  # Si no existe, lo dejamos vacío
+                        fila[clave] = None  # Si no existe, se deja vacio
             except:
-                # Si no hay parámetros, dejamos todo en None
-                for clave in parametros_clave:
+                # Si no hay parámetros, se deja todo en None
+                for clave in self.PARAMETROS_SALIDA:
                     fila[clave] = None
             
             data.append(fila)
 
-        # Convertir a DataFrame
+        # === Conversion | Dataframe
         df = pd.DataFrame(data)
-        output_csv = r"C:\Users\autom\Desktop\CARPINTERIA\Redimensionador - APP\despiece.csv"
+        output_csv = Path.home() / "Desktop" / "despiece.csv"
+        print(output_csv)
 
-        # Forzar columnas en orden aunque falte alguna
-        for clave in ["Componente"] + parametros_clave:
+        # === Reforzar de columnas vacias ===
+        for clave in ["Componente"] + self.PARAMETROS_SALIDA:
             if clave not in df.columns:
                 df[clave] = None
 
-        df = df[["Componente"] + parametros_clave]
+        df = df[["Componente"] + self.PARAMETROS_SALIDA]
 
-        # Guardar
-        df.to_excel(output_csv.replace(".csv", ".xlsx"), index=False)
-        #df.to_csv(output_csv, index=False)
+        # === Exportar | Despiece ===
+        df.to_excel(str(output_csv).replace(".csv", ".xlsx"), index=False)
 
         print(f"Archivo generado en: {output_csv}")
 
@@ -343,7 +360,8 @@ class MetricsEditorView(QFrame):
             valor  = getattr(p, "Value", None) or getattr(p, "value", "")
             unidad = getattr(p, "Units", None) or getattr(p, "units", "")
 
-            if nombre == "OFFSET_DIVISION_1":
+            if any(other.Name in p.Expression  and other.Name != param.Name for other in params):
+                print(f"Parametro '{nombre}' depende de otro, se ignora.")
                 continue
 
             if isinstance(valor, (int, float)):

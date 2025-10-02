@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt
 class SelectionPanel(QWidget):
     """
     Panel lateral fijo para selección de opciones.
-    Por ahora solo un placeholder vacío.
     Más adelante aquí montamos:
       - Lista de presets (QListWidget)
       - Filtros y opciones (QGroupBox con varios controles)
@@ -16,13 +15,26 @@ class SelectionPanel(QWidget):
         self.setObjectName("SelectionPanel")
         self.setAttribute(Qt.WA_StyledBackground, True) 
 
+        # === Contenedor Layout Principal ===
+
         wrap = QVBoxLayout(self)
         wrap.setContentsMargins(16, 16, 16, 16)
         wrap.setSpacing(14)
 
+        # === Título ===
+
         title = QLabel("Panel de selección")
         title.setObjectName("SelectionPanelTitle")
         wrap.addWidget(title)
+
+        # === Separador horizontal | Decorativo ===
+
+        divider = QFrame(self)
+        divider.setObjectName("TopDivider")
+        divider.setFrameShape(QFrame.HLine)
+        wrap.addWidget(divider)
+
+        # === ComboBoxes ===
 
         self._model_Type = self._field(wrap, "Tipo de modelo:", ["Tipo de modelo..."])
         self._model = self._field(wrap, "Modelo:", ["Modelo..."])
@@ -30,8 +42,7 @@ class SelectionPanel(QWidget):
         self._edge = self._field(wrap, "Tipo de canto:", ["Tipo de canto..."])
 
         wrap.setSpacing(20)
-
-        wrap.addStretch(1)  # empuja todo hacia arriba
+        wrap.addStretch(1)  
 
     def _field(self, parent_layout: QVBoxLayout, label_text: str, items: list[str]) -> QComboBox:
         _label = QLabel(label_text)

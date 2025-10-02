@@ -17,18 +17,19 @@ QToolBar {
 }
 
 #TopBarTitle {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #000000;
 }
 
 #Breadcrumbs QLabel#Crumb {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
   color: #374151; /* gris 700 */
 }
 
 #Breadcrumbs QLabel#CrumbSeparator {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: #374151; /* gris 400 */
 }
@@ -49,37 +50,66 @@ QToolBar {
 
 #SelectionPanel QLabel#SelectionPanelTitle {
   color: #e5e7eb;
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: bold;
+  font-size: 18px;
   padding: 4px 0 8px 0;
+  font-family: "Segoe UI", "Inter", Arial;
 }
 
 #SelectionPanel QLabel#SPLabel {
-  color: #cbd5e1;
+  color: #afc0ba;
   font-size: 12px;
+  font-weight: 600;
+  font-family: "Segoe UI", "Inter", Arial;
 }
 
 #SelectionPanel QComboBox#SPCombo {
   background: #323232;         /* a�n m�s oscuro para el input */
   color: #e5e7eb;
-  border: 1px solid #374151;
+  border: 1px solid #202020;
   border-radius: 8px;
-  min-height: 24px;            /* ↑ alto del control */
-  padding: 6px 36px 6px 10px; 
+  min-height: 20px;            /* ↑ alto del control */
+  padding: 6px 36px 6px 10px;
+  font-family: "Segoe UI", "Inter", Arial; 
 }
 #SelectionPanel QComboBox#SPCombo::drop-down { 
   width: 16px;
   subcontrol-origin: padding;
   subcontrol-position: top right;
-  border-left: 1px solid #dae0e9; 
+  border-left: 1.5px solid #1fbe8b;
+  font-size:20px;
 }
-#SelectionPanel QComboBox#SPCombo:hover      { border-color: #4b5563; }
-#SelectionPanel QComboBox#SPCombo:focus      { border: 2px solid #bebebe; }
+#SelectionPanel QComboBox#SPCombo:hover      { border: 1.5px solid #4b5563; }
+#SelectionPanel QComboBox#SPCombo:focus      { border: 1px solid #202020; outline: none;}
+#SelectionPanel QComboBox#SPCombo:focus:hover {
+  border: 1.5px solid #4b5563;   /* forzamos hover sobre foco */
+}
 #SelectionPanel QComboBox#SPCombo::down-arrow {
   /* puedes usar una imagen SVG, o dejar la nativa */
   width: 12px;
   height: 8px;
-  margin-right: 8px;           /* centra la flecha dentro del drop-down */
+  margin-right: 8px;
+}
+
+QComboBox QAbstractItemView {
+  background: #2e2e2e;
+  color: #e5e7eb;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  padding: 4px 0;
+  outline: none;
+  font-family: "Segoe UI", "Inter", Arial;
+}
+QComboBox QAbstractItemView::item {
+  padding: 6px 10px;
+}
+QComboBox QAbstractItemView::item:hover {
+  background: #3a3a3a;                     /* hover gris oscuro */
+  border-left: 1.5px solid #1fbe8b;
+}
+QComboBox QAbstractItemView::item:selected {
+  background: #404040;                     /* selección gris */
+  color: #e5e7eb;
 }
 
 /* Divisores */
@@ -116,11 +146,43 @@ QToolBar {
   background: #ffffffff;
   color: #000000;
   alternate-background-color: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: "Segoe UI", "Inter", Arial;
+  font-size: 13px;
+  font-weight: 525;
 }
 
-#MetricsTable::item:selected {
-  background: #eef2ff;    /* selección suave */
+#MetricsTable::item:hover {
+  background: #e5e5e5; /* gris muy claro */
+}
+
+#MetricsTable::item:selected,
+#MetricsTable::item:selected:active,
+#MetricsTable::item:selected:!active {
+  background: #e5e7eb;  /* gris claro, NO celeste */
+  color: #111;
+}
+
+#MetricsTable:focus { outline: none; }
+#MetricsTable::item:focus { outline: none; }
+
+/* Estilo del editor de celdas (QLineEdit) */
+#MetricsTable QLineEdit {
+  background: #ffffff;
   color: #111111;
+  border: 1px solid #cbd5e1; /* slate-300 */
+  border-radius: 12px;
+  padding: 4px 8px;
+
+  /* selección de texto dentro del editor */
+  selection-background-color: #e5e7eb; /* gris claro */
+  selection-color: #111;
+}
+
+/* Borde al enfocar */
+#MetricsTable QLineEdit:focus {
+  border: 2px solid #1fbe8b;
 }
 
 #MetricsTable QHeaderView {
@@ -128,17 +190,60 @@ QToolBar {
   border: none;
 }
 
-/* Secciones horizontales (títulos de columnas) */
+/* (títulos de columnas) */
 #MetricsTable QHeaderView::section:horizontal {
   background: #f9fafb;
   padding: 6px 8px;
-  border: 1px solid #e5e7eb;
-  font-weight: 600;
+  border-top: none; 
+  font-weight: 800;
   color: #111111;
+  font-family: "Segoe UI", "Inter", Arial;
 }
 
 /* Botón de esquina arriba-izquierda (por si algo lo pinta) */
 QTableCornerButton::section {
   background: #f9fafb;   /* o transparent */
   border: 1px solid #e5e7eb; /* o none */
+}
+
+#Button_Style{
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+
+  font-family: "Segoe UI", "Inter", Arial;
+  font-size: 14px;
+  font-weight: 600;
+
+  background: #111827;
+  color: #f3f4f6;       
+  border-color: #e5e7eb;
+
+  text-align: center; 
+}
+
+#Button_Style::icon {
+  subcontrol-origin: padding;
+  subcontrol-position: left center;
+}
+
+#Button_Style:disabled {
+    background: #2c2c2c;
+    color: #959595;
+    border: 1px solid #d1d5db;
+}
+
+/* Hover/Pressed/Focus neutrales */
+#Button_Style:hover {
+  background: #1F2E45;               /* gray-200 */
+}
+#Button_Style:pressed {
+  background: #dbdbdb;
+  padding-top: 7px;                   /* micro “press” */
+  padding-bottom: 5px;
+  color: #111111;
+}
+#Button_Style:focus {
+  outline: none;
+  border-color: #3c3c3c;              /* azul de foco */
 }

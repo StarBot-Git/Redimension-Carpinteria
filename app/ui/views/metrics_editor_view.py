@@ -3,7 +3,8 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QTableView, QSizePolicy, QHeaderView
 )
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QPalette, QColor
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QIcon
 import win32com.client
 import os
 import pandas as pd
@@ -44,26 +45,31 @@ class MetricsEditorView(QFrame):
         # ======== Botones | Funcionalidades varias ========
 
         actions = QHBoxLayout()
-        self.btn_Model   = QPushButton("Ver Modelo")
-        self.btn_Model.setEnabled(False)
+        self.btn_Model   = QPushButton(" Ver Modelo")
         self.btn_Model.clicked.connect(self.on_view_model)
+        self.set_Button_Style(self.btn_Model, icon_path="assets/icons/eye.svg")
 
-        self.btn_Drawings = QPushButton("Planos")
-        self.btn_Drawings.setEnabled(False) 
+        self.btn_Drawings = QPushButton(" Planos")
         self.btn_Drawings.clicked.connect(self.on_view_drawings)
+        self.set_Button_Style(self.btn_Drawings, icon_path="assets/icons/blueprint.svg")
 
-        self.btn_Import= QPushButton("⤓ Despiece CSV")
-        self.btn_Import.setEnabled(False)
+        self.btn_Import= QPushButton(" Despiece CSV")
         self.btn_Import.clicked.connect(self.on_import_csv)
+        self.set_Button_Style(self.btn_Import, icon_path="assets/icons/download.svg")
 
-        self.btn_Save= QPushButton("Guardar Cambios")
-        self.btn_Save.setEnabled(False)
+        self.btn_Load = QPushButton(" Cargar cambios")
+        self.btn_Load.clicked.connect(self.on_load_changes)
+        self.set_Button_Style(self.btn_Load, icon_path="assets/icons/upload.svg")
+
+        self.btn_Save= QPushButton(" Guardar Cambios")
         self.btn_Save.clicked.connect(self.on_save_changes)
+        self.set_Button_Style(self.btn_Save, icon_path="assets/icons/save.svg")
 
         actions.addWidget(self.btn_Model)
         actions.addWidget(self.btn_Drawings)
         actions.addWidget(self.btn_Import)
         actions.addStretch(1)
+        actions.addWidget(self.btn_Load)
         actions.addWidget(self.btn_Save)
         root.addLayout(actions)
 
@@ -87,6 +93,7 @@ class MetricsEditorView(QFrame):
 
         # La vista debe poder expandirse
         self.view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.view.setMouseTracking(True)
 
         self._apply_header_bounds()
 
@@ -103,6 +110,16 @@ class MetricsEditorView(QFrame):
             self.title.setText("Editor de metricas")
 
     # ---------- Buttons ----------
+
+    def set_Button_Style(self, button: QPushButton, icon_path: str = ""):
+        button.setObjectName("Button_Style")
+        button.setEnabled(False)
+        button.setMinimumHeight(32)
+        button.setCursor(Qt.PointingHandCursor)
+
+        if icon_path:
+            button.setIcon(QIcon(icon_path)) 
+            button.setIconSize(QSize(16, 16))  
 
     def on_view_model(self):
         asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
@@ -176,6 +193,21 @@ class MetricsEditorView(QFrame):
         print(f"Archivo generado en: {output_csv}")
 
     def on_save_changes(self):
+        if hasattr(self, "asmDoc") and self.asmDoc is not None:
+            self.inventor.SilentOperation = True  
+            self.asmDoc.Save()
+
+            for ref in self.asmDoc.ReferencedDocuments:
+                try:
+                    if ref.Dirty:
+                        ref.Save()
+                except Exception as e:
+                    print(f"No se pudo guardar {ref.FullFileName}: {e}")
+            print("💾 Cambios guardados en ensamble y dependencias")
+
+            self.inventor.SilentOperation = False
+
+    def on_load_changes(self):
         # Asegurarnos que el ensamble está abierto
         asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
         if not hasattr(self, "asmDoc") or self.asmDoc is None:
@@ -201,18 +233,7 @@ class MetricsEditorView(QFrame):
             self.skeleton_doc.Update()
             self.asmDoc.Update()
 
-            self.inventor.SilentOperation = True  
-            self.asmDoc.Save()
-
-            for ref in self.asmDoc.ReferencedDocuments:
-                try:
-                    if ref.Dirty:
-                        ref.Save()
-                except Exception as e:
-                    print(f"No se pudo guardar {ref.FullFileName}: {e}")
-            print("💾 Cambios guardados en ensamble y dependencias")
-
-            self.inventor.SilentOperation = False 
+    # ---------- Table Data Handling ----------
 
     def _parse_number(self, v):
         """Convierte el valor de la celda a float si se puede (soporta '1,23')."""
@@ -259,11 +280,15 @@ class MetricsEditorView(QFrame):
     def _apply_header_bounds(self):
         h = self.view.horizontalHeader()
         h.setStretchLastSection(False)
-        h.setMinimumSectionSize(40)
+        h.setMinimumSectionSize(60)
         h.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # alineación del texto del header
 
         h.setSectionResizeMode(0, QHeaderView.Stretch)           # Parametro ocupa espacio libre
         h.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Valor al contenido
+
+        col_width = h.sectionSize(1)
+        h.resizeSection(1, col_width + 100)
+
         h.setSectionResizeMode(2, QHeaderView.Fixed)             # Unidad fijo
         self.view.setColumnWidth(2, 72)
 
@@ -275,9 +300,9 @@ class MetricsEditorView(QFrame):
         
         for r in rows:
             self._append_row(
-                r.get("Parametro",""),
-                r.get("Valor",""),
-                r.get("Unidad","mm"),
+                f" {r.get("Parametro","")}",
+                f"  {r.get("Valor","")}   ",
+                f" {r.get("Unidad","mm")}",
             )
         
         self.view.resizeColumnsToContents()

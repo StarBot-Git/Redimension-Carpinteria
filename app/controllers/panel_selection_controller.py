@@ -4,13 +4,6 @@ import os
 
 class SelectionPanelController(QObject):
 
-    _MATERIALS = [
-        "Melamina", 
-        "Laminado", 
-        "Madera", 
-        "Otro"
-    ]
-
     _EDGES = [
         "ABS 0.45 mm", 
         "PVC 1.0 mm", 
@@ -32,14 +25,15 @@ class SelectionPanelController(QObject):
     def Start_SP(self):
 
         # === Carga inicial | Tipo de modelos ===
-        types = self.repo.fetch_model_types() # Solicitud de tipo de modelos en DB
+        types = self.repo.fetch_model_types()
         self._load_comboBox(self.sp._model_Type, ["Select type"] + types)
 
         # === Carga inicial | modelos ===
         self._load_comboBox(self.sp._model, ["Select model"]) # Vacio
 
         # === Carga inicial | Materiales ===
-        self._load_comboBox(self.sp._material, ["Select material"] + self._MATERIALS)
+        materials = self.repo.fetch_materials()
+        self._load_comboBox(self.sp._material, ["Select material"] + materials)
 
         # === Carga inicial | Cantos ===
         self._load_comboBox(self.sp._edge, ["Select edge"] + self._EDGES)
@@ -68,9 +62,13 @@ class SelectionPanelController(QObject):
         self.update_model_selection()
 
     """
-        update_breadcrumbs:
+        update_model_selection:
 
-        Actualiza los breadcrumbs en la barra superior según las selecciones actuales.
+        Actualiza todos los elementos dependientes de la selección del modelo:
+            - Breadcrumbs en la TopBar
+            - Título en MetricsEditorView
+            - Habilita/Deshabilita botones en MetricsEditorView
+            - Carga el modelo en MetricsEditorView
     """
 
     def update_model_selection(self):
@@ -96,14 +94,18 @@ class SelectionPanelController(QObject):
 
         # === Desbloqueo de botones | MetricsEditorView ===
         self.win.metrics_view.btn_Model.setEnabled(bool(m))
-        self.win.metrics_view.btn_Drawings.setEnabled(bool(m))
+        #self.win.metrics_view.btn_Drawings.setEnabled(bool(m))
         self.win.metrics_view.btn_Import.setEnabled(bool(m))
+        self.win.metrics_view.btn_Load.setEnabled(bool(m))
         self.win.metrics_view.btn_Save.setEnabled(bool(m))
 
         # === Busqueda y carga del modelo | MetricsEditorView ===
 
         if m:
-            model_Path = f"C:\\Users\\autom\\Desktop\\CARPINTERIA\\Inventor - Modelos - Prueba\\{self.sp._model.currentText()}" # Ruta base de modelos
+            if self.sp._model.currentText() == "COMODA 3 CAJONES":
+                model_Path = f"C:\\Users\\autom\\Desktop\\CARPINTERIA\\Inventor - Modelos - Prueba\\{self.sp._model.currentText()}" # Ruta base de modelos
+            else:
+                model_Path = f"C:\\Users\\autom\\OneDrive\\Carpintería\\Modelos Produccion\\{self.sp._model_Type.currentText()}\\{self.sp._model.currentText()}" # Ruta base de modelos
 
             if os.path.exists(model_Path):
                 rows = self.win.metrics_view.load_inventor_model(model_Path) # Cargar modelo en MetricsEditorView

@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
 
         self.topbar = TopBar(self) # Barra superior | .py externo
         self.topbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.topbar.setFixedHeight(80)
+        self.topbar.setFixedHeight(70)
         root.addWidget(self.topbar)
 
         # ========= Separador horizontal  | Decorativo ========

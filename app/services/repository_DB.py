@@ -35,6 +35,30 @@ class RepositoryDB:
             self.mostrar_error("Error al conectar con la base de datos.", "Verifica tu conexión a internet o contacta al administrador.") 
 
             raise RuntimeError("No se pudo conectar con la base de datos")
+        
+    def fetch_materials(self):
+        try:
+            with engine.connect() as cn:
+                df = pd.read_sql(f"SELECT DISTINCT color FROM dbo.tableros;", cn)
+            
+            return df['color'].tolist()
+        except:
+            self.mostrar_error("Error al conectar con la base de datos.", "Verifica tu conexión a internet o contacta al administrador.") 
+
+            raise RuntimeError("No se pudo conectar con la base de datos")
+        
+    def fetch_edges(self):
+        # try:
+        #     with engine.connect() as cn:
+        #         df = pd.read_sql(f"SELECT DISTINCT nombre_producto FROM dbo.productos WHERE tipo_producto = '{model_type}' ORDER BY nombre_producto;", cn)
+        #         pass
+            
+        #     return df['nombre_producto'].tolist()
+        # except:
+        #     self.mostrar_error("Error al conectar con la base de datos.", "Verifica tu conexión a internet o contacta al administrador.") 
+
+        #     raise RuntimeError("No se pudo conectar con la base de datos")
+        pass
     
     def mostrar_error(self, mensaje, detalle=None):
         app = QApplication.instance() or QApplication(sys.argv)  # Reusar app si existe
@@ -46,6 +70,3 @@ class RepositoryDB:
             msg.setInformativeText(detalle)
         msg.exec()   # Bloquea hasta que el usuario cierre
     
-# repo = RepositoryDB()
-# print(repo.fetch_model_types())
-# print(repo.fetch_models_by_type("Mueble de bar"))

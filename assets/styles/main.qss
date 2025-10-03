@@ -76,9 +76,18 @@ QToolBar {
   width: 16px;
   subcontrol-origin: padding;
   subcontrol-position: top right;
-  border-left: 1.5px solid #1fbe8b;
+  border-left: 1.5px solid #241fbe;
   font-size:20px;
 }
+
+#SelectionPanel QComboBox#SPCombo[valid="valid"]::drop-down{
+  border-left: 1.5px solid #1fbe8b;
+}
+
+#SelectionPanel QComboBox#SPCombo[valid="problem"]::drop-down{
+  border-left: 1.5px solid #be7c1f;
+}
+
 #SelectionPanel QComboBox#SPCombo:hover      { border: 1.5px solid #4b5563; }
 #SelectionPanel QComboBox#SPCombo:focus      { border: 1px solid #202020; outline: none;}
 #SelectionPanel QComboBox#SPCombo:focus:hover {
@@ -110,6 +119,14 @@ QComboBox QAbstractItemView::item:hover {
 QComboBox QAbstractItemView::item:selected {
   background: #404040;                     /* selección gris */
   color: #e5e7eb;
+}
+
+#ProgressBarTitle{
+  color: #e5e7eb;
+  font-weight: bold;
+  font-size: 12px;
+  padding: 4px 0 8px 0;
+  font-family: "Segoe UI", "Inter", Arial;
 }
 
 /* Divisores */

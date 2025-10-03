@@ -37,7 +37,7 @@ class SelectionPanelController(QObject):
 
         # === Carga inicial | Cantos ===
         self._load_comboBox(self.sp._edge, ["Select edge"] + self._EDGES)
-        
+    
     # ---------- Dinámicos ----------
     """
         on_model_type_changed:
@@ -51,11 +51,13 @@ class SelectionPanelController(QObject):
         if not text or text.startswith("Select"):
 
             self._load_comboBox(self.sp._model, ["Select model"])
+            self.set_valid_comboBox(self.sp._model_Type, "void")
         else: # === Carga de modelos ===
 
             models = self.repo.fetch_models_by_type(text) # Carga de modelos
             #models = ["Model A", "Model B", "Model C"] # Simulación de carga de modelos
             self._load_comboBox(self.sp._model, ["Select model"] + models)
+            self.set_valid_comboBox(self.sp._model_Type, "valid")
         
         # === Actualziacion de breadcrumbs | TopBar ===
 
@@ -72,6 +74,7 @@ class SelectionPanelController(QObject):
     """
 
     def update_model_selection(self):
+        n_Steps = 8 # Cantidad de pasos | Barra de progresos
 
         # === Texto inicial ===
         parts = ["Products"]
@@ -83,37 +86,75 @@ class SelectionPanelController(QObject):
         # === Anexacion de partes ===
         if t:
             parts.append(t)
-        if m:
-            parts.append(m)
         
-        # === Actualizacion de breadcrumbs | TopBar ===
-        self.win.topbar.set_breadcrumbs(parts)
-
-        # === Actualizacion de titulo | MetricsEditorView ===
-        self._Update_MetricsView_Title()
-
-        # === Desbloqueo de botones | MetricsEditorView ===
-        self.win.metrics_view.btn_Model.setEnabled(bool(m))
-        #self.win.metrics_view.btn_Drawings.setEnabled(bool(m))
-        self.win.metrics_view.btn_Import.setEnabled(bool(m))
-        self.win.metrics_view.btn_Load.setEnabled(bool(m))
-        self.win.metrics_view.btn_Save.setEnabled(bool(m))
-
-        # === Busqueda y carga del modelo | MetricsEditorView ===
-
         if m:
+            self.win.sidebar.loading.set_Text("Actualizando interfaz...")
+            self.win.sidebar.loading.set_Progress(0)
+            self.win.sidebar.loading.n_Steps = n_Steps
+            self.win.sidebar.loading.setVisible(True)
+
+            parts.append(m)
+
+            # === Actualizacion de breadcrumbs | TopBar ===
+            self.win.topbar.set_breadcrumbs(parts)
+            self.win.sidebar.loading.set_Progress(1)
+
+            # === Actualizacion de titulo | MetricsEditorView ===
+            self._Update_MetricsView_Title()
+            self.win.sidebar.loading.set_Progress(2)
+
+            #_________________________________________________________
+            # BORRAR ESTA COMPROBACION
             if self.sp._model.currentText() == "COMODA 3 CAJONES":
                 model_Path = f"C:\\Users\\autom\\Desktop\\CARPINTERIA\\Inventor - Modelos - Prueba\\{self.sp._model.currentText()}" # Ruta base de modelos
             else:
                 model_Path = f"C:\\Users\\autom\\OneDrive\\Carpintería\\Modelos Produccion\\{self.sp._model_Type.currentText()}\\{self.sp._model.currentText()}" # Ruta base de modelos
+            #_________________________________________________________
 
+            self.win.sidebar.loading.set_Text("Busqueda del modelo en OneDrive...")
+            self.win.sidebar.loading.set_Progress(3)
             if os.path.exists(model_Path):
-                rows = self.win.metrics_view.load_inventor_model(model_Path) # Cargar modelo en MetricsEditorView
+                # === Busqueda y carga del modelo | MetricsEditorView ===
+                self.set_valid_comboBox(self.sp._model, "valid")
 
-                self.win.metrics_view.set_rows(rows) 
+                rows = self.win.metrics_view.load_inventor_model(model_Path, self.win.sidebar.loading) # Cargar modelo en MetricsEditorView
+                
+                self.win.metrics_view.set_rows(rows)
+
+                self.win.sidebar.loading.set_Progress(7)
+
+                # === Desbloqueo de botones | MetricsEditorView ===
+                self.win.metrics_view.btn_Model.setEnabled(bool(m))
+                #self.win.metrics_view.btn_Drawings.setEnabled(bool(m))
+                self.win.metrics_view.btn_Import.setEnabled(bool(m))
+                self.win.metrics_view.btn_Load.setEnabled(bool(m))
+                self.win.metrics_view.btn_Save.setEnabled(bool(m))
+
+                self.win.sidebar.loading.set_Progress(8)
+
+                self.win.sidebar.loading.stop()
+                self.win.sidebar.loading.setVisible(False)
+
+                return
             else:
                 print(f"❌ La ruta {model_Path} no existe")
+                self.set_valid_comboBox(self.sp._model, "problem")
+            
+        else:
+            self.set_valid_comboBox(self.sp._model, "void")
 
+        # === OPCION NO VALIDA | Vacie la tabla y desactive botones ===
+        self.win.metrics_view.btn_Model.setEnabled(False)
+        self.win.metrics_view.btn_Drawings.setEnabled(False)
+        self.win.metrics_view.btn_Import.setEnabled(False)
+        self.win.metrics_view.btn_Load.setEnabled(False)
+        self.win.metrics_view.btn_Save.setEnabled(False)
+
+        self.win.metrics_view.set_rows([]) 
+
+        self.win.sidebar.loading.stop()
+        self.win.sidebar.loading.setVisible(False)
+        
 
     """
         _load_comboBox:
@@ -150,3 +191,16 @@ class SelectionPanelController(QObject):
     def _Update_MetricsView_Title(self):
         model_name = self._clean_piece(self.sp._model.currentText())
         self.win.metrics_view.set_model_name(model_name)
+
+    """
+        _Update_MetricsView_Title:
+
+        Actualiza el título del MetricsEditorView con el nombre del modelo seleccionado.
+    """
+
+    @staticmethod
+    def set_valid_comboBox(cb, state: str):
+        cb.setProperty("valid", state)
+        cb.style().unpolish(cb)
+        cb.style().polish(cb)
+        cb.update()

@@ -27,11 +27,23 @@ class MetricsEditorView(QFrame):
         root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(12)
 
-        # ======== Titulo ========
+        # ======== Contenedor superior ========
 
-        self.title = QLabel(f"Editor de metricas")
+        root_sup = QHBoxLayout()
+        root_sup.setContentsMargins(16, 16, 16, 16)
+
+        # - Titulo de modelo -
+        self.title = QLabel("Editor de metricas")
         self.title.setObjectName("MetricsCardTitle")
-        root.addWidget(self.title)
+        
+        # - Boton | Modo metricas o propiedades -
+        self.btn_Table = QPushButton("Metricas")
+        
+        root_sup.addWidget(self.title)
+        root_sup.addStretch(1)
+        root_sup.addWidget(self.btn_Table)
+
+        root.addLayout(root_sup)
 
         # ======== Contenedor | buscador ========
 
@@ -104,9 +116,8 @@ class MetricsEditorView(QFrame):
 
         # Aplicar estilo base
         self._apply_header_bounds()
-
-
-
+    
+    
     """
         set_model_name():
 
@@ -135,17 +146,24 @@ class MetricsEditorView(QFrame):
     def on_view_model(self):
 
         # === Verificacion | assembler document ===
-        asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
+        folder = Path(self.model_path)
+        iam_files = list(folder.glob("*.iam"))
+
+        if iam_files:
+            asm_path = str(iam_files[0])  # primer .iam que encuentre
+            print(f"✅ Ensamble encontrado: {asm_path}")
+        else:
+            asm_path = None
+            print("❌ No se encontró ningún archivo .iam")
         
         if os.path.exists(asm_path):
-
             self.asmDoc = self.inventor.Documents.Open(asm_path)
             print("✅ Ensamble CUERPO abierto")
         else:
 
             print("❌ No se encontró el archivo de ensamble")
             return
-
+        print("3")
         # === Mostrar Inventor ===
         self.inventor.Visible = True
 
@@ -156,7 +174,15 @@ class MetricsEditorView(QFrame):
         data = [] # Tabla de salida
 
         # === Verificar | Ensamble abierto ===
-        asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
+        folder = Path(self.model_path)
+        iam_files = list(folder.glob("*.iam"))
+
+        if iam_files:
+            asm_path = str(iam_files[0])  # primer .iam que encuentre
+            print(f"✅ Ensamble encontrado: {asm_path}")
+        else:
+            asm_path = None
+            print("❌ No se encontró ningún archivo .iam")
 
         if os.path.exists(asm_path):
 
@@ -226,7 +252,16 @@ class MetricsEditorView(QFrame):
 
     def on_load_changes(self):
         # Asegurarnos que el ensamble está abierto
-        asm_path = f"{self.model_path}\\ENSAMBLE CUERPO.iam"
+        folder = Path(self.model_path)
+        iam_files = list(folder.glob("*.iam"))
+
+        if iam_files:
+            asm_path = str(iam_files[0])  # primer .iam que encuentre
+            print(f"✅ Ensamble encontrado: {asm_path}")
+        else:
+            asm_path = None
+            print("❌ No se encontró ningún archivo .iam")
+
         if not hasattr(self, "asmDoc") or self.asmDoc is None:
             if os.path.exists(asm_path):
                 self.asmDoc = self.inventor.Documents.Open(asm_path)
@@ -328,13 +363,19 @@ class MetricsEditorView(QFrame):
 
     # ---------- Inventor Model Integration ----------
 
-    def load_inventor_model(self, model_path: str):
+    def load_inventor_model(self, model_path: str, loading_Bar):
         print(f"Cargando modelo de Inventor desde: {model_path}")
 
             # === Conexion con Inventor ===
 
+        loading_Bar.set_Text("Cargando modelo de Inventor...")
+        loading_Bar.set_Progress(4)
+
         self.inventor = win32com.client.Dispatch("Inventor.Application")
         self.inventor.Visible = False  # No mostrar la ventana de Inventor inicialmente
+
+        loading_Bar.set_Text("Abriendo Skeleton...")
+        loading_Bar.set_Progress(5)
 
         # === Apertura Skeleton Part ===
         self.model_path = model_path
@@ -347,7 +388,10 @@ class MetricsEditorView(QFrame):
             print(f"❌ No se encontró el archivo Skeleton del modelo")
             return
         
-        params = self.skeleton_doc.ComponentDefinition.Parameters        
+        loading_Bar.set_Text("Extrayendo parametro...")
+        loading_Bar.set_Progress(6)
+
+        params = self.skeleton_doc.ComponentDefinition.Parameters       
 
         print("Parámetros del modelo:")
         for param in params:

@@ -1,54 +1,80 @@
-import os
-import win32com.client    
+import win32com.client as win32
+import pythoncom
 
-class test():
-    def load_inventor_model(self, model_path):
-        print(f"Cargando modelo de Inventor desde: {model_path}")
+inv = win32.Dispatch("Inventor.Application")
+inv.Visible = False  # o True si quieres ver
 
-            # === Conexion con Inventor ===
+doc = inv.Documents.Open(r"C:\Users\autom\OneDrive\Carpintería\Modelos Produccion\PRUEBA\Escritorios Oficina\tapa cajon.ipt")  # PartDocument
+prop_sets = doc.PropertySets
+udp = doc.PropertySets.Item("Inventor User Defined Properties")
+try:
+    material_canto = udp.Item("Material Canto").Value
+except:
+    material_canto = ""
 
-        self.inventor = win32com.client.Dispatch("Inventor.Application")
-        self.inventor.Visible = False  # No mostrar la ventana de Inventor inicialmente
+am = doc.AttributeManager
 
-        # === Apertura Skeleton Part ===
+def faces_by_tag(tag: str):
+    """Devuelve lista de entidades (faces/proxies) con iLogicEntityName == tag"""
+    try:
+        # Muchos builds soportan filtrar por valor directamente (set, attr, value)
+        objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName", tag)
+        return [o for o in objs]  # puede ser vacío
+    except:
+        # Fallback: buscar por set+attr y filtrar a mano por value
+        objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName")
+        res = []
+        for o in objs:
+            try:
+                val = o.AttributeSets.Item("iLogicEntityNameSet").Item("iLogicEntityName").Value
+                if str(val) == tag:
+                    res.append(o)
+            except:
+                pass
+        return res
 
-        skeleton_path = f"{model_path}\\Skeleton Part.ipt"
+presentes = {name: len(faces_by_tag(name)) > 0 for name in ["L1", "L2", "A1", "A2"]}
 
-        if os.path.exists(skeleton_path):
-            print(f"✅ Skeleteon abierto")
-            skeleton_doc = self.inventor.Documents.Open(skeleton_path)
-        else:
-            print(f"❌ No se encontró el archivo Skeleton del modelo")
-            return
-        
-        params = skeleton_doc.ComponentDefinition.Parameters
-        
+mat_name  = doc.ComponentDefinition.Material.Name
 
-        print("Parámetros del modelo:")
-        for param in params:
-            print(f"- {param.Name}: {param.Value} {param.Units}")
+print("Material Canto:", material_canto)
+print("Cantos marcados:", presentes)
+print("Material:", mat_name)
 
-        # === Abrir Ensamble CUERPO ===
-        asm_path = f"{model_path}\\ENSAMBLE CUERPO.iam"
-        if os.path.exists(asm_path):
-            asmDoc = self.inventor.Documents.Open(asm_path)
-            print("✅ Ensamble CUERPO abierto")
-        else:
-            print("❌ No se encontró el archivo de ensamble")
-            return
 
-        # === Mostrar Inventor y traerlo al frente ===
-        self.inventor.Visible = True
-        #self.inventor.ActiveWindow.Activate()
+# for body in comp_def.SurfaceBodies:
+#     for face in body.Faces:
+#         a_sets = face.AttributeSets
+#         if a_sets.Count == 0:
+#             #print("  (sin AttributeSets)")
+#             continue
+#         for aset in a_sets:
+#             #print(f"  AttributeSet: {aset.Name}")
+#             for att in aset:
+#                 try:
+#                     print(f"    - {att.Name} = {att.Value}")
+#                 except:
+#                     #print(f"    - {att.Name} (no imprimible)")
+#                     pass
 
-        # Guardar y cerrar un documento
-        # skeleton_doc.Close(False)  # True = guardar cambios, False = no guardar
+# # Recorre todos los sólidos y caras
+# for body in comp_def.SurfaceBodies:
+#     for face in body.Faces:
+#         k = face_key(face)
+#         print("\n--- FACE:", k, "---")
+#         a_sets = face.AttributeSets
+#         if a_sets.Count == 0:
+#             print("  (sin AttributeSets)")
+#             continue
 
-        # # Cerrar Inventor completo
-        # self.inventor.Quit()
-        # self.inventor = None
-        
-prueba = test()
-prueba.load_inventor_model(f"C:\\Users\\autom\\OneDrive\\Carpintería\\Modelos Produccion\\PRUEBA\\COMODA 3 CAJONES")
-            
-        
+#         for aset in a_sets:
+#             print(f"  AttributeSet: {aset.Name}")
+#             for att in aset:
+#                 # Cada atributo tendrá .Name y .Value
+#                 try:
+#                     print(f"    - {att.Name} = {att.Value}")
+#                 except:
+#                     print(f"    - {att.Name} (tipo no imprimible)")
+
+doc.Close(True)
+inv.Quit()

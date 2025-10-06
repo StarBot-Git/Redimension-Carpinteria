@@ -16,6 +16,8 @@ THEME = "light"  # Opciones: "light", "dark"
 ROOT_DIR = Path(__file__).parent.parent.parent
 ASSETS_DIR = ROOT_DIR / "assets"
 
+LOGO_DIR = str(ASSETS_DIR / "icons" / "all_star_logo.svg")
+
 # Futuras opciones centralizadas:
 # DB_URL = "sqlite:///carpentry.db"
 # LOG_LEVEL = "INFO"

@@ -7,7 +7,7 @@ class TopBar(QFrame):
         super().__init__(parent)
         self.setObjectName("TopBar")
 
-        # ======== Titulo y Objeto =========
+        # ======== Titulo de la barra =========
 
         self._title = QLabel(settings.APP_NAME, self)
         self._title.setObjectName("TopBarTitle")
@@ -21,6 +21,7 @@ class TopBar(QFrame):
         self._crumbs_Layout.setSpacing(8)
 
         # ========= Layout horizontal ============
+
         aux_layout = QHBoxLayout(self)
         aux_layout.setContentsMargins(24, 12, 24, 12)
         aux_layout.setSpacing(12)
@@ -28,15 +29,19 @@ class TopBar(QFrame):
         aux_layout.addWidget(self._crumbs_container, 0, Qt.AlignVCenter)
         aux_layout.addStretch(1)
 
-        self.set_breadcrumbs(["Products", "Closet", "Select Model"])
+        self.set_breadcrumbs(["Products", "Type Model", "Select Model"])
+
+        # =========================================
 
     def set_breadcrumbs(self, crumbs: list[str]) -> None:
 
+        # ========= Eliminar | Breadcrumbs previos =========
         while self._crumbs_Layout.count():
             crumb_Name = self._crumbs_Layout.takeAt(0).widget()
             if crumb_Name:
                 crumb_Name.deleteLater()
 
+        # ========= Actualizacion | Breadcrumbs nuevos =========
         for i, crumb in enumerate(crumbs):
             crumb_Name = QLabel(crumb, self._crumbs_container)
             crumb_Name.setObjectName("Crumb")

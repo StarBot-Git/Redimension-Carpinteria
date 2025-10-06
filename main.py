@@ -1,4 +1,4 @@
-﻿import sys
+﻿import time, sys
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from app.ui.main_window import MainWindow
@@ -23,6 +23,7 @@ def main() -> int:
     apply_stylesheet(app)
 
     window = MainWindow()
+
     window.show()
 
     return app.exec()

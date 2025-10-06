@@ -1,5 +1,6 @@
 ﻿from PySide6.QtCore import Qt
 from PySide6.QtWidgets import *
+from PySide6.QtGui import QIcon
 
 # ====== Librerias propias ======
 
@@ -13,8 +14,14 @@ from app.config import settings
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
+
+        
+
+        # ======== Configuracion inicial ========
+
         self.setWindowTitle(settings.APP_NAME)
         self.resize(settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT)
+        self.setWindowIcon(QIcon(settings.LOGO_DIR))
 
         self.inventor = None # Variable Inventor
 
@@ -30,8 +37,9 @@ class MainWindow(QMainWindow):
         # ======== Top Bar ========
 
         self.topbar = TopBar(self) # Barra superior | .py externo
-        self.topbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.topbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed) # (Ancho, Alto)
         self.topbar.setFixedHeight(50)
+
         root.addWidget(self.topbar)
 
         # ========= Separador horizontal  | Decorativo ========
@@ -39,6 +47,7 @@ class MainWindow(QMainWindow):
         divider = QFrame(self)
         divider.setObjectName("TopDivider")
         divider.setFrameShape(QFrame.HLine)
+
         root.addWidget(divider)
 
         # ======== Contenedor | Sidebar + Content ========
@@ -49,6 +58,7 @@ class MainWindow(QMainWindow):
         row = QHBoxLayout()
         row.setContentsMargins(16,16,16,16)
         row.setSpacing(16)
+        
         root.addLayout(row)
 
         # ========= Sidebar (panel de selección) ========
@@ -84,7 +94,6 @@ class MainWindow(QMainWindow):
         row.addWidget(self.content, 1)
 
         # ======== Inicialización | Widget central ========
-
         self.setCentralWidget(central)
 
     """

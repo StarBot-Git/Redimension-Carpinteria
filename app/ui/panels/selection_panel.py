@@ -4,63 +4,75 @@ from PySide6.QtCore import Qt
 from app.ui.widgets.loadingBar_widget import LoadingWidget
 
 class SelectionPanel(QWidget):
-    """
-    Panel lateral fijo para selección de opciones.
-    Más adelante aquí montamos:
-      - Lista de presets (QListWidget)
-      - Filtros y opciones (QGroupBox con varios controles)
-      - Botones de acción (QPushButton)
-    """
+  """
+    class SelectionPanel():
+      - Titulo
+      - Linea divisora
+      - Combo Boxes
+      - Loading Widget
+  """
 
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("SelectionPanel")
-        self.setAttribute(Qt.WA_StyledBackground, True) 
+  def __init__(self, parent: QWidget | None = None) -> None:
+      super().__init__(parent)
+      self.setObjectName("SelectionPanel")
+      self.setAttribute(Qt.WA_StyledBackground, True)
 
-        # === Contenedor Layout Principal ===
+      # ========= Contenedor | Layout Principal =========
 
-        wrap = QVBoxLayout(self)
-        wrap.setContentsMargins(16, 16, 16, 16)
-        wrap.setSpacing(14)
+      wrap = QVBoxLayout(self)
+      wrap.setContentsMargins(16, 16, 16, 16)
+      wrap.setSpacing(14)
 
-        # === Título ===
+      # ========= Título =========
 
-        title = QLabel("Panel de selección")
-        title.setObjectName("SelectionPanelTitle")
-        wrap.addWidget(title)
+      title = QLabel("Panel de selección")
+      title.setObjectName("SelectionPanelTitle")
 
-        # === Separador horizontal | Decorativo ===
+      wrap.addWidget(title)
 
-        divider = QFrame(self)
-        divider.setObjectName("TopDivider")
-        divider.setFrameShape(QFrame.HLine)
-        wrap.addWidget(divider)
+      # ========= Separador horizontal | Decorativo =========
 
-        # === ComboBoxes ===
+      divider = QFrame(self)
+      divider.setObjectName("TopDivider")
+      divider.setFrameShape(QFrame.HLine)
 
-        self._model_Type = self._field(wrap, "Tipo de modelo:", ["Tipo de modelo..."])
-        self._model = self._field(wrap, "Modelo:", ["Modelo..."])
-        self._material = self._field(wrap, "Material:", ["Material..."])
-        self._edge = self._field(wrap, "Tipo de canto:", ["Tipo de canto..."])
+      wrap.addWidget(divider)
 
-        wrap.setSpacing(20)
-        wrap.addStretch(1)  
+      # ========= ComboBoxes =========
 
-        # === Loadinf widget | Diseño propio ===
+      self._model_Type = self._field(wrap, "Tipo de modelo:", ["Tipo de modelo..."])
+      self._model = self._field(wrap, "Modelo:", ["Modelo..."])
+      self._material = self._field(wrap, "Material:", ["Material..."])
+      self._edge = self._field(wrap, "Tipo de canto:", ["Tipo de canto..."])
 
-        self.loading = LoadingWidget()
-        self.loading.setVisible(False)
+      wrap.setSpacing(20)
+      wrap.addStretch(1)  
 
-        wrap.addWidget(self.loading)
+      # ========= Loading widget | Diseño propio =========
 
-    def _field(self, parent_layout: QVBoxLayout, label_text: str, items: list[str]) -> QComboBox:
-        _label = QLabel(label_text)
-        _label.setObjectName("SPLabel")
-        parent_layout.addWidget(_label)
+      self.loading = LoadingWidget()
+      self.loading.setVisible(False)
 
-        temp_CBox = QComboBox(self)
-        temp_CBox.setObjectName("SPCombo")
-        temp_CBox.addItems(items)
-        parent_layout.addWidget(temp_CBox)
+      wrap.addWidget(self.loading)
 
-        return temp_CBox
+      # ==================================================
+
+  """
+    _field():
+      Metodo que crea etiqueta y elementos de los Combo Box.
+  """
+
+  def _field(self, parent_layout: QVBoxLayout, label_text: str, items: list[str]) -> QComboBox:
+      
+      # ========= Etiqueta | ComboBox =========
+      _label = QLabel(label_text)
+      _label.setObjectName("SPLabel")
+      parent_layout.addWidget(_label)
+
+      # ========= Objeto | ComboBox =========
+      temp_CBox = QComboBox(self)
+      temp_CBox.setObjectName("SPCombo")
+      temp_CBox.addItems(items)
+      parent_layout.addWidget(temp_CBox)
+
+      return temp_CBox

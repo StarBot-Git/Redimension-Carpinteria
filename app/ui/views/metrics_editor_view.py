@@ -311,7 +311,6 @@ class MetricsEditorView(QFrame):
         self.btn_Table.setIcon(QIcon(icon_path))
         self.btn_Table.setText(button_text)
 
-
         # === Forzar refresco de estilo ===
         self.btn_Table.style().unpolish(self.btn_Table)
         self.btn_Table.style().polish(self.btn_Table)
@@ -377,46 +376,6 @@ class MetricsEditorView(QFrame):
         h.setSectionResizeMode(2, QHeaderView.Fixed)             # Unidad fijo
         self.view.setColumnWidth(2, 72)
 
-    # def set_rows(self, rows: list[dict], state: bool):
-    #     """
-    #     rows: [{"Parametro": str, "Valor": any, "Unidad": str}, ...]
-    #     """
-    #     self.model.removeRows(0, self.model.rowCount())
-
-    #     if state == True:
-    #         for r in rows:
-    #             self._append_row(
-    #                 f" {r.get("Parametro","")}",
-    #                 f"  {r.get("Valor","")}   ",
-    #                 f" {r.get("Unidad","mm")}",
-    #             )
-    #     else:
-    #         for r in rows:
-    #             self._append_row(
-    #                 f" {r.get("Pieza","")}",
-    #                 f"  {r.get("Material","")}   ",
-    #                 f" {r.get("Material Canto","mm")}",
-    #                 f" {r.get("A1","mm")}",
-    #                 f" {r.get("A2","mm")}",
-    #                 f" {r.get("L1","mm")}",
-    #                 f" {r.get("L2","mm")}",
-    #             )
-        
-    #     self.view.resizeColumnsToContents()
-
-    #     self._apply_header_bounds() 
-
-    # def _append_row(self, param, value, unit):
-    #     items = [
-    #         QStandardItem(str(param)),        # read-only
-    #         QStandardItem(str(value)),        # editable
-    #         QStandardItem(str(unit)),         # read-only
-    #     ]
-    #     # Marcar Min/Max como no editables
-    #     for idx in (0, 2):
-    #         items[idx].setEditable(False)
-    #     self.model.appendRow(items)
-
     def set_TableData(self, state: bool):
         if state == True:
             headers = self.HEADERS_METRICS
@@ -428,6 +387,16 @@ class MetricsEditorView(QFrame):
         self.model.setColumnCount(len(headers))
         self.model.setHorizontalHeaderLabels(headers)
         self.model.removeRows(0, self.model.rowCount())
+
+        # if state == True:
+        #     for r in range(self.model.rowCount()):
+        #         it = self.model.item(r, 1)
+        #         it.setFlags(it.flags() | Qt.ItemIsEditable)
+        # else:
+        #     for r in range(self.model.rowCount()):
+        #         for c in range(self.model.columnCount()):
+        #             it = self.model.item(r, c)
+        #             it.setFlags(it.flags() & ~Qt.ItemIsEditable)
 
         for r in rows:
             self.model.appendRow([QStandardItem(str(v)) for v in r.values()])

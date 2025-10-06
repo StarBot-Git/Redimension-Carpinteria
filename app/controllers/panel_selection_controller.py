@@ -74,7 +74,7 @@ class SelectionPanelController(QObject):
     """
 
     def update_model_selection(self):
-        n_Steps = 8 # Cantidad de pasos | Barra de progresos
+        n_Steps = 9 # Cantidad de pasos | Barra de progresos
 
         # === Texto inicial ===
         parts = ["Products"]
@@ -117,11 +117,11 @@ class SelectionPanelController(QObject):
                 # === Busqueda y carga del modelo | MetricsEditorView ===
                 self.set_valid_comboBox(self.sp._model, "valid")
 
-                rows = self.win.metrics_view.load_inventor_model(model_Path, self.win.sidebar.loading) # Cargar modelo en MetricsEditorView
+                self.win.metrics_view.load_inventor_model(model_Path, self.win.sidebar.loading) # Cargar modelo en MetricsEditorView
                 
-                self.win.metrics_view.set_rows(rows)
+                self.win.metrics_view.set_TableData(True)
 
-                self.win.sidebar.loading.set_Progress(7)
+                self.win.sidebar.loading.set_Progress(8)
 
                 # === Desbloqueo de botones | MetricsEditorView ===
                 self.win.metrics_view.btn_Model.setEnabled(bool(m))
@@ -129,8 +129,9 @@ class SelectionPanelController(QObject):
                 self.win.metrics_view.btn_Import.setEnabled(bool(m))
                 self.win.metrics_view.btn_Load.setEnabled(bool(m))
                 self.win.metrics_view.btn_Save.setEnabled(bool(m))
+                self.win.metrics_view.btn_Table.setEnabled(bool(m))
 
-                self.win.sidebar.loading.set_Progress(8)
+                self.win.sidebar.loading.set_Progress(9)
 
                 self.win.sidebar.loading.stop()
                 self.win.sidebar.loading.setVisible(False)
@@ -149,8 +150,9 @@ class SelectionPanelController(QObject):
         self.win.metrics_view.btn_Import.setEnabled(False)
         self.win.metrics_view.btn_Load.setEnabled(False)
         self.win.metrics_view.btn_Save.setEnabled(False)
+        self.win.metrics_view.btn_Table.setEnabled(False)
 
-        self.win.metrics_view.set_rows([]) 
+        self.win.metrics_view.set_TableData(True)
 
         self.win.sidebar.loading.stop()
         self.win.sidebar.loading.setVisible(False)

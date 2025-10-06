@@ -12,7 +12,8 @@ from pathlib import Path
 
 class MetricsEditorView(QFrame):
     # ======== Headers | Tabla metrica ========
-    HEADERS = ["Parametro", "Valor", "Unidad"]
+    HEADERS = HEADERS_METRICS = ["Parametro", "Valor", "Unidad"]
+    HEADERS_PROPS = ["Pieza", "Material", "Material Canto", "A1", "A2", "L1", "L2"]
 
     # ======== Parametros de salida | Despiece ========
     PARAMETROS_SALIDA = ["Ancho", "Alto", "Espesor"]
@@ -38,6 +39,10 @@ class MetricsEditorView(QFrame):
         
         # - Boton | Modo metricas o propiedades -
         self.btn_Table = QPushButton("Metricas")
+        self.btn_Table.clicked.connect(self.toggle_table)
+        self.btn_Table.setProperty("State", True) # True -> Metricas
+        self.set_Button_Style(self.btn_Table, icon_path="assets/icons/toggle_State1.svg")
+
         
         root_sup.addWidget(self.title)
         root_sup.addStretch(1)
@@ -92,6 +97,9 @@ class MetricsEditorView(QFrame):
         root.addLayout(actions)
 
         # ======== Tabla de metricas ========
+
+        self.rows_metrics = []
+        self.rows_props = []
 
         self.view = QTableView(self)
         self.view.setObjectName("MetricsTable")
@@ -285,6 +293,30 @@ class MetricsEditorView(QFrame):
             self.skeleton_doc.Update()
             self.asmDoc.Update()
 
+    def toggle_table(self):
+        current_state = bool(self.btn_Table.property("State"))
+        new_state = not current_state
+        self.btn_Table.setProperty("State", new_state)
+        print(f"Nuevo estado: {new_state}")
+
+        self.set_TableData(new_state)
+
+        icon_path = (
+        "assets/icons/toggle_State1.svg" if new_state
+        else "assets/icons/toggle_State2.svg" 
+        )
+        button_text = (
+            "Metricas" if new_state else "propiedades"
+        )
+        self.btn_Table.setIcon(QIcon(icon_path))
+        self.btn_Table.setText(button_text)
+
+
+        # === Forzar refresco de estilo ===
+        self.btn_Table.style().unpolish(self.btn_Table)
+        self.btn_Table.style().polish(self.btn_Table)
+        self.btn_Table.update()
+
     # ---------- Table Data Handling ----------
 
     def _parse_number(self, v):
@@ -332,6 +364,7 @@ class MetricsEditorView(QFrame):
     def _apply_header_bounds(self):
         h = self.view.horizontalHeader()
         h.setStretchLastSection(False)
+        h.setSectionsMovable(True)
         h.setMinimumSectionSize(60)
         h.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # alineación del texto del header
 
@@ -344,22 +377,63 @@ class MetricsEditorView(QFrame):
         h.setSectionResizeMode(2, QHeaderView.Fixed)             # Unidad fijo
         self.view.setColumnWidth(2, 72)
 
-    def set_rows(self, rows: list[dict]):
-        """
-        rows: [{"Parametro": str, "Valor": any, "Unidad": str}, ...]
-        """
-        self.model.removeRows(0, self.model.rowCount())
-        
-        for r in rows:
-            self._append_row(
-                f" {r.get("Parametro","")}",
-                f"  {r.get("Valor","")}   ",
-                f" {r.get("Unidad","mm")}",
-            )
-        
-        self.view.resizeColumnsToContents()
+    # def set_rows(self, rows: list[dict], state: bool):
+    #     """
+    #     rows: [{"Parametro": str, "Valor": any, "Unidad": str}, ...]
+    #     """
+    #     self.model.removeRows(0, self.model.rowCount())
 
-        self._apply_header_bounds() 
+    #     if state == True:
+    #         for r in rows:
+    #             self._append_row(
+    #                 f" {r.get("Parametro","")}",
+    #                 f"  {r.get("Valor","")}   ",
+    #                 f" {r.get("Unidad","mm")}",
+    #             )
+    #     else:
+    #         for r in rows:
+    #             self._append_row(
+    #                 f" {r.get("Pieza","")}",
+    #                 f"  {r.get("Material","")}   ",
+    #                 f" {r.get("Material Canto","mm")}",
+    #                 f" {r.get("A1","mm")}",
+    #                 f" {r.get("A2","mm")}",
+    #                 f" {r.get("L1","mm")}",
+    #                 f" {r.get("L2","mm")}",
+    #             )
+        
+    #     self.view.resizeColumnsToContents()
+
+    #     self._apply_header_bounds() 
+
+    # def _append_row(self, param, value, unit):
+    #     items = [
+    #         QStandardItem(str(param)),        # read-only
+    #         QStandardItem(str(value)),        # editable
+    #         QStandardItem(str(unit)),         # read-only
+    #     ]
+    #     # Marcar Min/Max como no editables
+    #     for idx in (0, 2):
+    #         items[idx].setEditable(False)
+    #     self.model.appendRow(items)
+
+    def set_TableData(self, state: bool):
+        if state == True:
+            headers = self.HEADERS_METRICS
+            rows = self.rows_metrics
+        else:
+            headers = self.HEADERS_PROPS
+            rows = self.rows_props
+
+        self.model.setColumnCount(len(headers))
+        self.model.setHorizontalHeaderLabels(headers)
+        self.model.removeRows(0, self.model.rowCount())
+
+        for r in rows:
+            self.model.appendRow([QStandardItem(str(v)) for v in r.values()])
+
+        self.view.resizeColumnsToContents()
+        self._apply_header_bounds()
 
     # ---------- Inventor Model Integration ----------
 
@@ -397,7 +471,7 @@ class MetricsEditorView(QFrame):
         for param in params:
             print(f"- {param.Name}: {param.Value} {param.Units}")
 
-
+        # ==== Fila de metricas ====
         rows = []
         for p in params:
             nombre = getattr(p, "Name", None) or getattr(p, "name", "")
@@ -416,15 +490,163 @@ class MetricsEditorView(QFrame):
                 "Valor": valor,
                 "Unidad": unidad,
             })
+
+        self.rows_metrics = rows
+
+        loading_Bar.set_Text("Extrayendo Propiedades de piezas...")
+        loading_Bar.set_Progress(7)
+
+        # ==== Fila de propiedades ====
+            
+        folder = Path(self.model_path)
+        iam_files = list(folder.glob("*.iam"))
+
+        if iam_files:
+            asm_path = str(iam_files[0])  # primer .iam que encuentre
+            print(f"✅ Ensamble encontrado: {asm_path}")
+            self.rows_props = self.extract_properties_table_from_assembly(asm_path)
+        else:
+            asm_path = None
+            print("❌ No se encontró ningún archivo .iam")
+            self.rows_props = []
+    
+    # ---- Inventor | Propiedades del ensamble
+
+    def faces_by_tag(sel, doc, tag: str):
+        """Devuelve lista de entidades (faces/proxies) con iLogicEntityName == tag en un PartDocument."""
+        am = doc.AttributeManager
+        try:
+            objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName", tag)
+            return [o for o in objs]  # puede ser vacío
+        except:
+            # Fallback: buscar por set+attr y filtrar por value
+            try:
+                objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName")
+            except:
+                return []
+            res = []
+            for o in objs:
+                try:
+                    val = o.AttributeSets.Item("iLogicEntityNameSet").Item("iLogicEntityName").Value
+                    if str(val) == tag:
+                        res.append(o)
+                except:
+                    pass
+            return res
+
+    def collect_part_paths(self, asm_doc):
+        """Recorre el ensamble (recursivo) y devuelve rutas únicas de todas las piezas .ipt."""
+        seen = set()
+        def walk(doc):
+            try:
+                refs = doc.ReferencedDocuments
+            except:
+                refs = []
+            for r in refs:
+                try:
+                    f = r.FullFileName
+                except:
+                    continue
+                if not f:
+                    continue
+                ext = Path(f).suffix.lower()
+                if ext == ".ipt":
+                    seen.add(f)
+                elif ext == ".iam":
+                    walk(r)
+        walk(asm_doc)
+        return sorted(seen)
+
+    def extract_props_from_part(self, doc):
+        """Extrae Material, Material Canto y banderas A1/A2/L1/L2 de un PartDocument ya abierto."""
+        # Material
+        try:
+            material = doc.ComponentDefinition.Material.Name
+        except:
+            material = ""
+
+        # User Defined Property: "Material Canto"
+        mat_canto = ""
+        try:
+            udp = doc.PropertySets.Item("Inventor User Defined Properties")
+            mat_canto = udp.Item("Material Canto").Value
+
+        except:
+            pass
+
+        # Tags presentes
+        tags = ["A1", "A2", "L1", "L2"]
+        presentes = {t: (len(self.faces_by_tag(doc, t)) > 0) for t in tags}
+
+        pieza = Path(doc.FullFileName).stem if getattr(doc, "FullFileName", "") else doc.DisplayName
+
+        return {
+            "Pieza": pieza,
+            "Material": material,
+            "Material Canto": mat_canto or "No especificado",
+            "A1": 1 if presentes["A1"] else 0,
+            "A2": 1 if presentes["A2"] else 0,
+            "L1": 1 if presentes["L1"] else 0,
+            "L2": 1 if presentes["L2"] else 0,
+        }
+
+    def extract_properties_table_from_assembly(self, asm_path: str) -> list[dict]:
+        """
+        Abre el .iam (si no está abierto), recorre todas las .ipt referenciadas y
+        devuelve list[dict] con HEADERS_PROPS.
+        """
+        
+        inv = self.inventor
+        # No forzamos visible; déjalo como tengas tu instancia principal
+        # inv.Visible = False
+
+        docs = inv.Documents
+
+        # Abrir assembly si no está abierto
+        asm_doc = None
+        opened_asm_here = False
+        for i in range(1, docs.Count + 1):
+            d = docs.Item(i)
+            if getattr(d, "FullFileName", "").lower() == asm_path.lower():
+                asm_doc = d
+                break
+        if asm_doc is None:
+            asm_doc = docs.Open(asm_path)
+            opened_asm_here = True
+
+        # Recolectar rutas de piezas
+        part_paths = self.collect_part_paths(asm_doc)
+
+        rows = []
+        opened_here = []  # docs que abrimos aquí para luego cerrarlos
+
+        try:
+            for p in part_paths:
+                # Buscar si la pieza ya está abierta
+                part_doc = None
+                for i in range(1, docs.Count + 1):
+                    d = docs.Item(i)
+                    if getattr(d, "FullFileName", "").lower() == p.lower():
+                        part_doc = d
+                        break
+                if part_doc is None:
+                    part_doc = docs.Open(p)
+                    opened_here.append(part_doc)
+
+                rows.append(self.extract_props_from_part(part_doc))
+        finally:
+            # Cerrar piezas que abrimos aquí
+            for d in opened_here:
+                try:
+                    d.Close(True)  # True = save changes; usa False si no quieres guardar
+                except:
+                    pass
+            # Cerrar ensamblado si lo abrimos aquí
+            if opened_asm_here:
+                try:
+                    asm_doc.Close(True)
+                except:
+                    pass
+
         return rows
 
-    def _append_row(self, param, value, unit):
-        items = [
-            QStandardItem(str(param)),        # read-only
-            QStandardItem(str(value)),        # editable
-            QStandardItem(str(unit)),         # read-only
-        ]
-        # Marcar Min/Max como no editables
-        for idx in (0, 2):
-            items[idx].setEditable(False)
-        self.model.appendRow(items)

@@ -1,28 +1,22 @@
-import win32com.client as win32
+import os
+from pathlib import Path
 import pythoncom
+import win32com.client as win32
 
-inv = win32.Dispatch("Inventor.Application")
-inv.Visible = False  # o True si quieres ver
+HEADERS_PROPS = ["Pieza", "Material", "Material Canto", "A1", "A2", "L1", "L2"]
 
-doc = inv.Documents.Open(r"C:\Users\autom\OneDrive\Carpintería\Modelos Produccion\PRUEBA\Escritorios Oficina\tapa cajon.ipt")  # PartDocument
-prop_sets = doc.PropertySets
-udp = doc.PropertySets.Item("Inventor User Defined Properties")
-try:
-    material_canto = udp.Item("Material Canto").Value
-except:
-    material_canto = ""
-
-am = doc.AttributeManager
-
-def faces_by_tag(tag: str):
-    """Devuelve lista de entidades (faces/proxies) con iLogicEntityName == tag"""
+def faces_by_tag(doc, tag: str):
+    """Devuelve lista de entidades (faces/proxies) con iLogicEntityName == tag en un PartDocument."""
+    am = doc.AttributeManager
     try:
-        # Muchos builds soportan filtrar por valor directamente (set, attr, value)
         objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName", tag)
         return [o for o in objs]  # puede ser vacío
     except:
-        # Fallback: buscar por set+attr y filtrar a mano por value
-        objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName")
+        # Fallback: buscar por set+attr y filtrar por value
+        try:
+            objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName")
+        except:
+            return []
         res = []
         for o in objs:
             try:
@@ -33,48 +27,127 @@ def faces_by_tag(tag: str):
                 pass
         return res
 
-presentes = {name: len(faces_by_tag(name)) > 0 for name in ["L1", "L2", "A1", "A2"]}
+def collect_part_paths(asm_doc):
+    """Recorre el ensamble (recursivo) y devuelve rutas únicas de todas las piezas .ipt."""
+    seen = set()
+    def walk(doc):
+        try:
+            refs = doc.ReferencedDocuments
+        except:
+            refs = []
+        for r in refs:
+            try:
+                f = r.FullFileName
+            except:
+                continue
+            if not f:
+                continue
+            ext = Path(f).suffix.lower()
+            if ext == ".ipt":
+                seen.add(f)
+            elif ext == ".iam":
+                walk(r)
+    walk(asm_doc)
+    return sorted(seen)
 
-mat_name  = doc.ComponentDefinition.Material.Name
+def extract_props_from_part(doc):
+    """Extrae Material, Material Canto y banderas A1/A2/L1/L2 de un PartDocument ya abierto."""
+    # Material
+    try:
+        material = doc.ComponentDefinition.Material.Name
+    except:
+        material = ""
 
-print("Material Canto:", material_canto)
-print("Cantos marcados:", presentes)
-print("Material:", mat_name)
+    # User Defined Property: "Material Canto"
+    mat_canto = ""
+    try:
+        udp = doc.PropertySets.Item("Inventor User Defined Properties")
+        mat_canto = udp.Item("Material Canto").Value
 
+    except:
+        pass
 
-# for body in comp_def.SurfaceBodies:
-#     for face in body.Faces:
-#         a_sets = face.AttributeSets
-#         if a_sets.Count == 0:
-#             #print("  (sin AttributeSets)")
-#             continue
-#         for aset in a_sets:
-#             #print(f"  AttributeSet: {aset.Name}")
-#             for att in aset:
-#                 try:
-#                     print(f"    - {att.Name} = {att.Value}")
-#                 except:
-#                     #print(f"    - {att.Name} (no imprimible)")
-#                     pass
+    # Tags presentes
+    tags = ["A1", "A2", "L1", "L2"]
+    presentes = {t: (len(faces_by_tag(doc, t)) > 0) for t in tags}
 
-# # Recorre todos los sólidos y caras
-# for body in comp_def.SurfaceBodies:
-#     for face in body.Faces:
-#         k = face_key(face)
-#         print("\n--- FACE:", k, "---")
-#         a_sets = face.AttributeSets
-#         if a_sets.Count == 0:
-#             print("  (sin AttributeSets)")
-#             continue
+    pieza = Path(doc.FullFileName).stem if getattr(doc, "FullFileName", "") else doc.DisplayName
 
-#         for aset in a_sets:
-#             print(f"  AttributeSet: {aset.Name}")
-#             for att in aset:
-#                 # Cada atributo tendrá .Name y .Value
-#                 try:
-#                     print(f"    - {att.Name} = {att.Value}")
-#                 except:
-#                     print(f"    - {att.Name} (tipo no imprimible)")
+    return {
+        "Pieza": pieza,
+        "Material": material,
+        "Material Canto": mat_canto or "No especificado",
+        "A1": 1 if presentes["A1"] else 0,
+        "A2": 1 if presentes["A2"] else 0,
+        "L1": 1 if presentes["L1"] else 0,
+        "L2": 1 if presentes["L2"] else 0,
+    }
 
-doc.Close(True)
-inv.Quit()
+def extract_properties_table_from_assembly(asm_path: str) -> list[dict]:
+    """
+    Abre el .iam (si no está abierto), recorre todas las .ipt referenciadas y
+    devuelve list[dict] con HEADERS_PROPS.
+    """
+    pythoncom.CoInitialize()
+    inv = win32.Dispatch("Inventor.Application")
+    # No forzamos visible; déjalo como tengas tu instancia principal
+    # inv.Visible = False
+
+    docs = inv.Documents
+
+    # Abrir assembly si no está abierto
+    asm_doc = None
+    opened_asm_here = False
+    for i in range(1, docs.Count + 1):
+        d = docs.Item(i)
+        if getattr(d, "FullFileName", "").lower() == asm_path.lower():
+            asm_doc = d
+            break
+    if asm_doc is None:
+        asm_doc = docs.Open(asm_path)
+        opened_asm_here = True
+
+    # Recolectar rutas de piezas
+    part_paths = collect_part_paths(asm_doc)
+
+    rows = []
+    opened_here = []  # docs que abrimos aquí para luego cerrarlos
+
+    try:
+        for p in part_paths:
+            # Buscar si la pieza ya está abierta
+            part_doc = None
+            for i in range(1, docs.Count + 1):
+                d = docs.Item(i)
+                if getattr(d, "FullFileName", "").lower() == p.lower():
+                    part_doc = d
+                    break
+            if part_doc is None:
+                part_doc = docs.Open(p)
+                opened_here.append(part_doc)
+
+            rows.append(extract_props_from_part(part_doc))
+    finally:
+        # Cerrar piezas que abrimos aquí
+        for d in opened_here:
+            try:
+                d.Close(True)  # True = save changes; usa False si no quieres guardar
+            except:
+                pass
+        # Cerrar ensamblado si lo abrimos aquí
+        if opened_asm_here:
+            try:
+                asm_doc.Close(True)
+            except:
+                pass
+
+    return rows
+
+# ===== Ejemplo de uso =====
+if __name__ == "__main__":
+    asm_path = r"C:\Users\autom\OneDrive\Carpintería\Modelos Produccion\PRUEBA\Escritorios Oficina\Escritorio oficina.iam"
+    data = extract_properties_table_from_assembly(asm_path)
+    # `data` es list[dict] con keys HEADERS_PROPS, listo para tu tabla
+    for row in data:
+        print(row)
+

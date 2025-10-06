@@ -240,7 +240,7 @@ QTableCornerButton::section {
 }
 
 #Button_Style::icon {
-  subcontrol-origin: padding;
+  subcontrol-origin: content;
   subcontrol-position: left center;
 }
 
@@ -263,4 +263,23 @@ QTableCornerButton::section {
 #Button_Style:focus {
   outline: none;
   border-color: #3c3c3c;              /* azul de foco */
+}
+
+#Button_Style[State="false"] {
+  padding: 4px 14px;
+  border-radius: 8px;
+  border: 1px solid #0b0b0b;
+
+  font-family: "Segoe UI", "Inter", Arial;
+  font-size: 14px;
+  font-weight: 600;
+
+  background: #f4f4f4;
+  color: #111827;
+
+  text-align: center;
+}
+
+#Button_Style[State="false"]:hover{
+  background: #e5e7eb;
 }

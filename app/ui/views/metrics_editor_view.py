@@ -9,6 +9,8 @@ import win32com.client
 import os
 import pandas as pd
 from pathlib import Path
+from openpyxl import load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 class MetricsEditorView(QFrame):
     # ======== Headers | Tabla metrica ========
@@ -132,6 +134,8 @@ class MetricsEditorView(QFrame):
         Actualiza el título del MetricsEditorView con el nombre del modelo seleccionado.
     """
     def set_model_name(self, model_name: str):
+        self.model_name = model_name
+
         if model_name:
             self.title.setText(f"Editor de metricas - {model_name}")
         else:
@@ -208,7 +212,31 @@ class MetricsEditorView(QFrame):
 
             print(f"📦 Componente: {nombre}")
 
-            fila = {"Componente": nombre}
+            if "ipt" not in nombre:
+                continue
+
+            nombre = nombre.split('.')[0]
+
+            fila = {"Designación": nombre}
+            fila ["Tipo"] = "Tablero"
+
+            # ====== Busqueda | Pieza en la tabla de propiedades ======
+
+            pieza_actual = None
+
+            for row in self.rows_props:
+                if row.get("Pieza") in nombre.split('.')[0]:
+                    pieza_actual = row
+                    print(f"✅ ES: {row.get("Pieza")}")
+                    break
+
+            if pieza_actual:
+                fila["Material"] = pieza_actual.get("Material")
+                fila["Material Canto"] = pieza_actual.get("Material Canto")
+                fila["A1"] = pieza_actual.get("A1")
+                fila["A2"] = pieza_actual.get("A2")
+                fila["L1"] = pieza_actual.get("L1")
+                fila["L2"] = pieza_actual.get("L2")
 
             try:
                 params = partDoc.ComponentDefinition.Parameters
@@ -228,18 +256,29 @@ class MetricsEditorView(QFrame):
 
         # === Conversion | Dataframe
         df = pd.DataFrame(data)
-        output_csv = Path.home() / "Desktop" / "despiece.csv"
+        print(df)
+        output_csv = Path.home() / "Desktop" / f"despiece-{self.model_name}.xlsx"
         print(output_csv)
 
-        # === Reforzar de columnas vacias ===
-        for clave in ["Componente"] + self.PARAMETROS_SALIDA:
-            if clave not in df.columns:
-                df[clave] = None
-
-        df = df[["Componente"] + self.PARAMETROS_SALIDA]
+        df = self.breakdown_CSV_Format(df=df)
+        print(df)
 
         # === Exportar | Despiece ===
-        df.to_excel(str(output_csv).replace(".csv", ".xlsx"), index=False)
+
+        wb = load_workbook(r"assets\templates\despiece.xlsx")
+        ws = wb["Despiece"]        # la hoja con tu diseño/formatos
+
+        start_row, start_col = 1, 2   # B1
+        # Escribir encabezados
+        for j, col in enumerate(df.columns, start=start_col):
+            ws.cell(row=start_row, column=j).value = col
+
+        # Escribir filas
+        for i, row in enumerate(df.itertuples(index=False), start=start_row+1):
+            for j, val in enumerate(row, start=start_col):
+                ws.cell(row=i, column=j).value = val
+
+        wb.save(output_csv)
 
         print(f"Archivo generado en: {output_csv}")
 
@@ -293,6 +332,35 @@ class MetricsEditorView(QFrame):
             self.skeleton_doc.Update()
             self.asmDoc.Update()
 
+            # === Recalcular rows_metrics (solo memoria, no toca la tabla) ===
+            try:
+                all_params = [p for p in params]  # forzar iterable COM
+                rows = []
+                for p in all_params:
+                    nombre_p = getattr(p, "Name", "") or ""
+                    valor_p  = getattr(p, "Value", None)
+                    unidad_p = getattr(p, "Units", "") or ""
+                    expr_p   = getattr(p, "Expression", "") or ""
+
+                    # Ignorar parámetros dependientes
+                    if any(other.Name in expr_p and other.Name != nombre_p for other in all_params):
+                        continue
+
+                    # Convertir a mm (tú lees *10)
+                    if isinstance(valor_p, (int, float)):
+                        valor_p = valor_p * 10
+
+                    rows.append({
+                        "Parametro": str(nombre_p),
+                        "Valor": valor_p,
+                        "Unidad": unidad_p,
+                    })
+
+                self.rows_metrics = rows
+                # print(f"🔁 rows_metrics actualizado: {len(rows)} filas")
+            except Exception as e:
+                print(f"⚠ No se pudo reconstruir rows_metrics: {e}")
+
     def toggle_table(self):
         current_state = bool(self.btn_Table.property("State"))
         new_state = not current_state
@@ -315,6 +383,114 @@ class MetricsEditorView(QFrame):
         self.btn_Table.style().unpolish(self.btn_Table)
         self.btn_Table.style().polish(self.btn_Table)
         self.btn_Table.update()
+
+    # ---------- Table Data Handling ----------
+
+    def breakdown_CSV_Format(self, df: pd.DataFrame):
+        # === 1) Agrupar ===
+        df_agrupado = df.groupby('Designación', as_index=False).agg({
+            'Ancho': 'first',
+            'Alto': 'first', 
+            'Espesor': 'first',
+            'Material': 'first',
+            'Material Canto': 'first',
+            'A1': 'first',
+            'A2': 'first',
+            'L1': 'first',
+            'L2': 'first'
+        })
+
+        # Normalizar a número (NaN si no es numérico)
+        for col in ['Ancho', 'Alto', 'Espesor', 'A1', 'A2', 'L1', 'L2']:
+            df_agrupado[col] = pd.to_numeric(df_agrupado[col], errors='coerce')
+
+        # Contar cantidad de piezas
+        df_agrupado['Cantidad'] = df.groupby('Designación').size().values
+
+        # === 2) Área segura ===
+        mask_area = df_agrupado['Alto'].gt(0) & df_agrupado['Ancho'].gt(0)
+        df_agrupado['Area - final'] = ''
+        df_agrupado.loc[mask_area, 'Area - final'] = (
+            (df_agrupado.loc[mask_area, 'Alto'] * df_agrupado.loc[mask_area, 'Ancho'] / 10000)
+            .round(2).astype(str) + ' m²'
+        )
+
+        # === Agregar columna Tipo = "Tablero" para las originales ===
+        df_agrupado['Tipo'] = 'Tablero'
+
+        # === 3) Tabla principal (CON Tipo, A1, A2, L1, L2) ===
+        df_principal = df_agrupado[['Designación', 'Cantidad', 'Alto', 'Ancho', 'Espesor', 
+                                    'Area - final', 'Tipo', 'Material', 'A1', 'A2', 'L1', 'L2']].copy()
+
+        # === 4) Filas de cantos (seguras ante NaN) ===
+        def safe_num(x, default=0.0):
+            return float(x) if pd.notna(x) else default
+
+        filas_cantos = []
+        for _, row in df_agrupado.iterrows():
+            nombre_pieza = row['Designación']
+            cantidad_pieza = int(safe_num(row['Cantidad'], 0))
+            ancho = safe_num(row['Ancho'], 0.0)
+            alto = safe_num(row['Alto'], 0.0)
+            espesor = safe_num(row['Espesor'], 0.0)
+
+            material_canto = row.get('Material Canto')
+            if not isinstance(material_canto, str) or not material_canto.strip():
+                material_canto = 'No especificado'
+
+            # A1/A2/L1/L2 pueden ser NaN -> False
+            tiene_A1 = safe_num(row['A1'], 0) == 1.0
+            tiene_A2 = safe_num(row['A2'], 0) == 1.0
+            tiene_L1 = safe_num(row['L1'], 0) == 1.0
+            tiene_L2 = safe_num(row['L2'], 0) == 1.0
+
+            # Ancho del canto:
+            # match row['Ancho']:
+            #     case ""
+
+            # Cantos A
+            if tiene_A1 or tiene_A2:
+                cantidad_cantos_A = (int(tiene_A1) + int(tiene_A2)) * cantidad_pieza
+                alto_canto_A = ancho
+                filas_cantos.append({
+                    'Designación': f"{nombre_pieza} - A",
+                    'Cantidad': cantidad_cantos_A,
+                    'Alto': alto_canto_A,
+                    'Ancho': 0.019,
+                    'Espesor': 0,
+                    'Area - final': '',
+                    'Tipo': 'Canto',  # ← Aquí está!
+                    'Material': material_canto,
+                    'A1': None,
+                    'A2': None,
+                    'L1': None,
+                    'L2': None
+                })
+
+            # Cantos L
+            if tiene_L1 or tiene_L2:
+                cantidad_cantos_L = (int(tiene_L1) + int(tiene_L2)) * cantidad_pieza
+                alto_canto_L = alto
+                filas_cantos.append({
+                    'Designación': f"{nombre_pieza} - L",
+                    'Cantidad': cantidad_cantos_L,
+                    'Alto': alto_canto_L,
+                    'Ancho': 0.019,
+                    'Espesor': 0,
+                    'Area - final': '',
+                    'Tipo': 'Canto',  # ← Aquí también!
+                    'Material': material_canto,
+                    'A1': None,
+                    'A2': None,
+                    'L1': None,
+                    'L2': None
+                })
+
+        df_cantos = pd.DataFrame(filas_cantos)
+
+        # === 5) Combinar ===
+        df_final = pd.concat([df_principal, df_cantos], ignore_index=True)
+        return df_final
 
     # ---------- Table Data Handling ----------
 
@@ -479,7 +655,7 @@ class MetricsEditorView(QFrame):
             print("❌ No se encontró ningún archivo .iam")
             self.rows_props = []
     
-    # ---- Inventor | Propiedades del ensamble
+    # ---------- Inventor | Propiedades del ensamble ----------
 
     def faces_by_tag(sel, doc, tag: str):
         """Devuelve lista de entidades (faces/proxies) con iLogicEntityName == tag en un PartDocument."""

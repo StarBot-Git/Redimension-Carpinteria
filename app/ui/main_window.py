@@ -15,8 +15,6 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
 
-        
-
         # ======== Configuracion inicial ========
 
         self.setWindowTitle(settings.APP_NAME)

@@ -26,12 +26,48 @@ QToolBar {
   font-size: 14px;
   font-weight: 500;
   color: #374151; /* gris 700 */
+  text-align: center;
 }
 
 #Breadcrumbs QLabel#CrumbSeparator {
   font-size: 15px;
   font-weight: 700;
   color: #374151; /* gris 400 */
+  text-align: center;
+}
+
+#TopBar_Button {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;     /* gris claro */
+  background: #ffffff;
+  color: #111827;                /* gris oscuro */
+  font-family: "Segoe UI", "Inter", Arial;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Hover: fondo gris muy claro */
+#TopBar_Button:hover {
+  background: #f9fafb;           /* gris más claro */
+  border-color: #9ca3af;         /* gris medio */
+}
+
+/* Pressed: tono más oscuro */
+#TopBar_Button:pressed {
+  background: #e5e7eb;           /* gris medio */
+  border-color: #6b7280;
+  color: #000000;
+  padding-top: 7px;              /* efecto de “presión” */
+  padding-bottom: 5px;
+}
+
+/* Disabled: atenuado */
+#TopBar_Button:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  border-color: #e5e7eb;
 }
 
 #TopDivider {
@@ -266,17 +302,14 @@ QTableCornerButton::section {
 }
 
 #Button_Style[State="false"] {
-  padding: 4px 14px;
+  padding: 6px 14px;
   border-radius: 8px;
-  border: 1px solid #0b0b0b;
-
+  border: 1px solid #d1d5db;     /* gris claro */
+  background: #ffffff;
+  color: #111827;                /* gris oscuro */
   font-family: "Segoe UI", "Inter", Arial;
   font-size: 14px;
   font-weight: 600;
-
-  background: #f4f4f4;
-  color: #111827;
-
   text-align: center;
 }
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 APP_NAME = "Star Lift"
 WINDOW_WIDTH = 1200
-WINDOW_HEIGHT = 640
+WINDOW_HEIGHT = 700
 
 # ======== TEMA ==========
 
@@ -20,6 +20,7 @@ LOGO_DIR = str(ASSETS_DIR / "icons" / "all_star_logo.svg")
 
 ONEDRIVE_CARPENTRY_DIR = str(Path.home() / "OneDrive" / "Carpintería")
 ONEDRIVE_MODELS_DIR = str(Path.home() / "OneDrive" / "Carpintería" / "Modelos Produccion")
+ONEDRIVE_PROJECTS_DIR = str(Path.home() / "OneDrive" / "Carpintería" / "Proyectos")
 
 # Futuras opciones centralizadas:
 # DB_URL = "sqlite:///carpentry.db"

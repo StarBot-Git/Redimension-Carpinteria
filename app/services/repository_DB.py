@@ -45,6 +45,23 @@ class RepositoryDB:
     # -------- Consultas a la Base de datos --------
     
     """
+        fetch_activate_projects():
+            Consulta los proyectos aun activos en la base de datos
+    """
+    def fetch_activate_projects(self):
+        try:
+            self._ensure_connection()
+
+            df = pd.read_sql(text("SELECT * FROM dbo.proyectos WHERE estado <> 'Entregado';"), self.cn)
+            return df['nombre_proyecto'].dropna().tolist()
+        except Exception as e:
+            self.mostrar_error(
+                "Error al conectar con la base de datos.",
+                "Verifica tu conexión a internet o contacta al administrador."
+            )
+            raise RuntimeError("No se pudo conectar con la base de datos") from e
+
+    """
         fetch_model_types():
             Consulta los tipo de modelos/productos que ofrece All Star para sus proyectos.
     """

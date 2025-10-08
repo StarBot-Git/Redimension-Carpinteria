@@ -1,5 +1,6 @@
 import os
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, Qt
+from pathlib import Path
 
 # ====== Librerias propias ======
 
@@ -22,11 +23,20 @@ class SelectionPanelController(QObject):
         self.repo = repository      # RepositoryDB
         self.sp = window.sidebar    # SelectionPanel
 
+        # === Conexion logica | Proyectos ===
+        self.sp._project.currentTextChanged.connect(self.update_project_selection)
+
         # === Conexion logica | Tipo de modelo ===
         self.sp._model_Type.currentTextChanged.connect(self.on_model_type_changed)
 
         # === Conexion logica | Modelos ===
         self.sp._model.currentTextChanged.connect(self.update_model_selection)
+
+        # === Conexion logica | Materiales ===
+        self.sp._material.currentTextChanged.connect(self.update_material_selection)
+
+        # === Conexion logica | Material de canto ===
+        #self.sp._edge.currentTextChanged.connect(self.update_edge_selection)
 
 
     """
@@ -34,6 +44,9 @@ class SelectionPanelController(QObject):
             Funcion que inicializa los comboBox en el seleccionPanel
     """
     def Start_SP(self):
+        # === Carga inicial | Proyectos ===
+        projects = self.repo.fetch_activate_projects()
+        self._load_comboBox(self.sp._project, ["select project"] + projects)
 
         # === Carga inicial | Tipo de modelos ===
         types = self.repo.fetch_model_types()
@@ -48,8 +61,49 @@ class SelectionPanelController(QObject):
 
         # === Carga inicial | Cantos ===
         self._load_comboBox(self.sp._edge, ["Select edge"] + self._EDGES)
+
+        # ===== Inicialmente | ComboBox desactivados =====
+        self.sp._model_Type.setEnabled(False)
+        self.set_valid_comboBox(self.sp._model_Type, "disabled")
+        self.sp._model.setEnabled(False)
+        self.set_valid_comboBox(self.sp._model, "disabled")
+        self.sp._material.setEnabled(False)
+        self.set_valid_comboBox(self.sp._material, "disabled")
+        self.sp._edge.setEnabled(False)
+        self.set_valid_comboBox(self.sp._edge, "disabled")
     
     # ---------- Metodos dinámicos ----------
+
+    """
+        update_project_selection():
+            Funcion encargada de activar y crear o retomar el estado actual de un proyecto
+    """
+    def update_project_selection(self):
+        current_option = self._clean_piece(self.sp._project.currentText())
+
+        if current_option:
+            self.set_valid_comboBox(self.sp._project, "valid")
+            self.win.topbar._title.setText(current_option)
+
+            self.proceed_CurrentProject(current_option)
+            self.win.metrics_view.NOMBRE_PROYECTO = current_option
+
+            self.sp._model_Type.setEnabled(True)
+            self.set_valid_comboBox(self.sp._model_Type, "void")
+            self.sp._model.setEnabled(True)
+            self.set_valid_comboBox(self.sp._model, "void")
+        else:
+            self.set_valid_comboBox(self.sp._project, "void")
+            self.win.topbar._title.setText(settings.APP_NAME)
+
+            self.sp._model_Type.setEnabled(False)
+            self.set_valid_comboBox(self.sp._model_Type, "disabled")
+            self.sp._model.setEnabled(False)
+            self.set_valid_comboBox(self.sp._model, "disabled")
+            self.sp._material.setEnabled(False)
+            self.set_valid_comboBox(self.sp._material, "disabled")
+            self.sp._edge.setEnabled(False)
+            self.set_valid_comboBox(self.sp._edge, "disabled")
 
     """
         on_model_type_changed():
@@ -148,6 +202,11 @@ class SelectionPanelController(QObject):
                 self.win.sidebar.loading.stop()
                 self.win.sidebar.loading.setVisible(False)
 
+                self.sp._material.setEnabled(True)
+                self.set_valid_comboBox(self.sp._material, "void")
+                self.sp._edge.setEnabled(True)
+                self.set_valid_comboBox(self.sp._edge, "void")
+
                 return
             else:
                 print(f"❌ La ruta '{model_Path}' no existe")
@@ -174,8 +233,66 @@ class SelectionPanelController(QObject):
 
         self.win.sidebar.loading.stop()
         self.win.sidebar.loading.setVisible(False)
-        
+    
+    """
+    """
+    def update_material_selection(self):
+        current_option = self._clean_piece(self.sp._material.currentText())
+
+        # Solo aplica si estamos en vista Propiedades
+        if current_option and (bool(self.win.metrics_view.btn_Table.property("State")) == False):
+            piezas = []
+            model = self.win.metrics_view.model
+
+            # === Obtener piezas seleccionadas ===
+            for r in range(model.rowCount()):
+                idx_chk = model.index(r, 0)  # col "Ed"
+                if model.data(idx_chk, Qt.CheckStateRole) == Qt.Checked:
+                    idx_name = model.index(r, 1)  # col "Pieza"
+                    piezas.append(model.data(idx_name, Qt.DisplayRole))
+
+            print(f"🔹 Piezas seleccionadas: {piezas}")
+
+            # === Actualizar 'Material' en rows_props ===
+            rows_props = self.win.metrics_view.rows_props
+
+            for fila in rows_props:
+                if fila.get("Pieza") in piezas:
+                    fila["Material"] = current_option
+                    print(f"✅ {fila['Pieza']} → nuevo material: {current_option}")
+
+            # === Refrescar tabla para reflejar cambios ===
+            self.win.metrics_view.set_TableData(False)
+            self.sp._material.setCurrentIndex(0)
+        else:
+            pass
     # ---------- Utilidades ----------
+
+    """
+        proceed_CurrentProject():
+            Funcion que revisa si la carpeta del proyecto ya existe(si no la crea).
+    """
+    def proceed_CurrentProject(self, project_name:str = None):
+        self.win.projects_folder_dir = f"{settings.ONEDRIVE_PROJECTS_DIR}\\{project_name}"
+
+        self.win.breakdowns_folder_dir = f"{self.win.projects_folder_dir}\\Despieces"
+        self.win.blueprints_folder_dir = f"{self.win.projects_folder_dir}\\Planos"
+        
+        print(self.win.projects_folder_dir)
+
+        if Path(self.win.projects_folder_dir).exists():
+            # Retome la carpeta
+            print("No es necesario")
+            pass
+        else:
+            print("Creando!!!!")
+            # === Creacion de la carpeta del proyecto ===
+            Path(self.win.projects_folder_dir).mkdir(parents=False, exist_ok=True)
+
+            # === Creacion subcarpetas | Cotizacion y Produccion ===
+
+            Path(self.win.breakdowns_folder_dir).mkdir(parents=False, exist_ok=True)
+            Path(self.win.blueprints_folder_dir).mkdir(parents=False, exist_ok=True)
 
     """
         _load_comboBox():

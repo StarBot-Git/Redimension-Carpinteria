@@ -116,6 +116,10 @@ QToolBar {
   font-size:20px;
 }
 
+#SelectionPanel QComboBox#SPCombo[valid="disabled"]::drop-down{
+  border-left: 1.5px solid #454545;
+}
+
 #SelectionPanel QComboBox#SPCombo[valid="valid"]::drop-down{
   border-left: 1.5px solid #1fbe8b;
 }

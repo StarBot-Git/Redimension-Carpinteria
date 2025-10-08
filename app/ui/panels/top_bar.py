@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon
 
 from app.controllers.topbar_controller import TopBarController
+from app.config import settings
 
 class TopBar(QFrame):
     """
@@ -25,7 +26,7 @@ class TopBar(QFrame):
 
         # ======== Titulo de la barra =========
 
-        self._title = QLabel("Seleccione un proyecto...", self)
+        self._title = QLabel(settings.APP_NAME, self)
         self._title.setObjectName("TopBarTitle")
 
         aux_layout.addWidget(self._title, 0, Qt.AlignVCenter)
@@ -65,7 +66,7 @@ class TopBar(QFrame):
 
         # ========= Inicializar | Breadcrumbs ============
 
-        self.set_breadcrumbs(["Products", "Type Model", "Select Model"])
+        self.set_breadcrumbs(["All Star", "Type Model", "Select Model"])
 
         # =========================================
 

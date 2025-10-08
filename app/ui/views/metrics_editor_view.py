@@ -6,11 +6,14 @@ from openpyxl import load_workbook
 
 from PySide6.QtWidgets import (
     QFrame, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QTableView, QSizePolicy, QHeaderView
+    QLineEdit, QPushButton, QTableView, QSizePolicy, QHeaderView, QStyledItemDelegate
 )
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon
+
+from app.config import settings
+from app.ui.widgets.table_check import CheckDelegate
 
 
 class MetricsEditorView(QFrame):
@@ -19,7 +22,12 @@ class MetricsEditorView(QFrame):
     HEADERS_PROPS = ["Pieza", "Material", "Material Canto", "A1", "A2", "L1", "L2"]
 
     # ======== Parametros de salida | Despiece ========
-    PARAMETROS_SALIDA = ["Ancho", "Alto", "Espesor"]
+    PARAMETROS_SALIDA = ["Ancho", "Largo", "Espesor"]
+
+    # ======== Proyecto actual ========
+    NOMBRE_PROYECTO = None
+
+    KEY_FIELD = "Pieza"
 
     """
         MetricsEditorView():
@@ -143,7 +151,7 @@ class MetricsEditorView(QFrame):
         self.view.setMouseTracking(True)
 
         # Aplicar estilo base
-        self._apply_header_bounds()
+        self._apply_header_bounds(True)
     
     
     """
@@ -297,7 +305,7 @@ class MetricsEditorView(QFrame):
 
         # === Exportar | Despiece ===
 
-        output_csv = Path.home() / "Desktop" / f"despiece-{self.model_name}.xlsx"
+        output_csv = f"{settings.ONEDRIVE_PROJECTS_DIR}\\{self.NOMBRE_PROYECTO}\\Despieces\\despiece-{self.model_name}.xlsx"
 
         wb = load_workbook(r"assets\templates\despiece.xlsx")
         ws = wb["Despiece"] # Hoja donde esta el diseño
@@ -443,7 +451,7 @@ class MetricsEditorView(QFrame):
         # == Agrupar ==
         df_agrupado = df.groupby('Designación', as_index=False).agg({
             'Ancho': 'first',
-            'Alto': 'first', 
+            'Largo': 'first', 
             'Espesor': 'first',
             'Material': 'first',
             'Material Canto': 'first',
@@ -454,7 +462,7 @@ class MetricsEditorView(QFrame):
         })
 
         # == Convertir a numero o NaN ==
-        for col in ['Ancho', 'Alto', 'Espesor', 'A1', 'A2', 'L1', 'L2']:
+        for col in ['Ancho', 'Largo', 'Espesor', 'A1', 'A2', 'L1', 'L2']:
             df_agrupado[col] = pd.to_numeric(df_agrupado[col], errors='coerce')
 
         # == Espesor en metros ==
@@ -464,16 +472,16 @@ class MetricsEditorView(QFrame):
         df_agrupado['Cantidad'] = df.groupby('Designación').size().values
 
         # == Area Final en m² ==
-        mask_area = df_agrupado['Alto'].gt(0) & df_agrupado['Ancho'].gt(0)
+        mask_area = df_agrupado['Largo'].gt(0) & df_agrupado['Ancho'].gt(0)
 
         df_agrupado['Area - final'] = ''
-        df_agrupado.loc[mask_area, 'Area - final'] = (((df_agrupado.loc[mask_area, 'Alto']/1000) * (df_agrupado.loc[mask_area, 'Ancho']/1000)).round(2).astype(str) + ' m²')
+        df_agrupado.loc[mask_area, 'Area - final'] = (((df_agrupado.loc[mask_area, 'Largo']/1000) * (df_agrupado.loc[mask_area, 'Ancho']/1000)).round(2).astype(str) + ' m²')
 
         # == Agregar columna Tipo = "Tablero" ==
         df_agrupado['Tipo'] = 'Tablero'
 
         # == Tabla principal organizada ==
-        df_principal = df_agrupado[['Designación', 'Cantidad', 'Alto', 'Ancho', 'Espesor', 
+        df_principal = df_agrupado[['Designación', 'Cantidad', 'Largo', 'Ancho', 'Espesor', 
                                     'Area - final', 'Tipo', 'Material', 'A1', 'A2', 'L1', 'L2']].copy()
 
         # == Verificador NaN ==        
@@ -488,7 +496,7 @@ class MetricsEditorView(QFrame):
             cantidad_pieza = int(safe_num(row['Cantidad'], 0))
 
             ancho = safe_num(row['Ancho'], 0.0)
-            alto = safe_num(row['Alto'], 0.0)
+            largo = safe_num(row['Largo'], 0.0)
             espesor = safe_num(row['Espesor'], 0.0)
 
             material_canto = row.get('Material Canto')
@@ -518,11 +526,11 @@ class MetricsEditorView(QFrame):
             # Cantos A
             if tiene_A1 or tiene_A2:
                 cantidad_cantos_A = (int(tiene_A1) + int(tiene_A2)) * cantidad_pieza
-                alto_canto_A = ancho
+                largo_canto_A = ancho
                 filas_cantos.append({
                     'Designación': f"{nombre_pieza} - A",
                     'Cantidad': cantidad_cantos_A,
-                    'Alto': alto_canto_A,
+                    'Largo': largo_canto_A,
                     'Ancho': ancho_canto,
                     'Espesor': 0,
                     'Area - final': '',
@@ -537,11 +545,11 @@ class MetricsEditorView(QFrame):
             # Cantos L
             if tiene_L1 or tiene_L2:
                 cantidad_cantos_L = (int(tiene_L1) + int(tiene_L2)) * cantidad_pieza
-                alto_canto_L = alto
+                largo_canto_L = largo
                 filas_cantos.append({
                     'Designación': f"{nombre_pieza} - L",
                     'Cantidad': cantidad_cantos_L,
-                    'Alto': alto_canto_L,
+                    'Largo': largo_canto_L,
                     'Ancho': ancho_canto,
                     'Espesor': 0,
                     'Area - final': '',
@@ -604,44 +612,80 @@ class MetricsEditorView(QFrame):
         _apply_header_bounds():
             Funcion que estiliza el Header de la tabla
     """
-    def _apply_header_bounds(self):
+    def _apply_header_bounds(self, is_metrics: bool):
         h = self.view.horizontalHeader()
         h.setStretchLastSection(False)
         h.setSectionsMovable(True)
-        h.setMinimumSectionSize(60)
-        h.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # alineación del texto del header
+        h.setMinimumSectionSize(30)
+        h.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        h.setSectionResizeMode(0, QHeaderView.Stretch)           # Parametro ocupa espacio libre
-        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Valor al contenido
+        if is_metrics:
+            # Métricas: ["Parametro","Valor","Unidad"]
+            h.setSectionResizeMode(0, QHeaderView.Stretch)           # Parametro ocupa el espacio
+            self.view.setItemDelegateForColumn(0, QStyledItemDelegate(self.view))
+            h.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Valor al contenido
+            # opcional: dar un poquito más a "Valor"
+            w = max(80, h.sectionSize(1) + 100)
+            h.resizeSection(1, w)
+            h.setSectionResizeMode(2, QHeaderView.Fixed)             # Unidad fijo
+            self.view.setColumnWidth(2, 72)
+        else:
+            # Propiedades: ["Editar","Pieza","Material","Material Canto","A1","A2","L1","L2"]
+            h.setSectionResizeMode(0, QHeaderView.Fixed)             # checkbox angosto
+            self.view.setItemDelegateForColumn(0, CheckDelegate(self.view))
+            self.view.setColumnWidth(0, 28)
 
-        col_width = h.sectionSize(1)
-        h.resizeSection(1, col_width + 100)
+            h.setSectionResizeMode(1, QHeaderView.Stretch)           # "Pieza" principal
 
-        h.setSectionResizeMode(2, QHeaderView.Fixed)             # Unidad fijo
-        self.view.setColumnWidth(2, 72)
+            h.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # "Material"
+            h.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # "Material Canto"
+
+            for col in (4, 5, 6, 7):                                 # A1..L2 pequeños
+                h.setSectionResizeMode(col, QHeaderView.Fixed)
+                self.view.setColumnWidth(col, 36)
+
+        # (opcional pero útil)
+        # self.view.setSelectionBehavior(self.view.selectRow)
+        # self.view.setSelectionMode(self.view.ExtendedSelection)
+
 
     """
         set_TableData():
             Funcion que actualiza la tabla segun su modo(Metricas o Propiedades).
     """
     def set_TableData(self, state: bool):
-        # === Seleccion | Metricas o Propiedades ===
-        if state == True:
-            headers = self.HEADERS_METRICS
+        # === Seleccion | Metricas (True) o Propiedades (False) ===
+        if state:
+            headers = self.HEADERS_METRICS                      # ["Parametro","Valor","Unidad"]
             rows = self.rows_metrics
         else:
-            headers = self.HEADERS_PROPS
+            # Para Propiedades, recuerda que ya agregaste la col "Editar" en el modelo
+            # si usas la columna check. Si no, deja HEADERS_PROPS tal cual.
+            headers = ["Editar"] + self.HEADERS_PROPS           # ["Editar","Pieza","Material",...]
             rows = self.rows_props
 
+        self.model.removeRows(0, self.model.rowCount())
         self.model.setColumnCount(len(headers))
         self.model.setHorizontalHeaderLabels(headers)
-        self.model.removeRows(0, self.model.rowCount())
 
         for r in rows:
-            self.model.appendRow([QStandardItem(str(v)) for v in r.values()])
+            items = []
+            if not state:
+                # col 0 = checkbox (solo en Propiedades)
+                chk = QStandardItem()
+                chk.setCheckable(True)
+                chk.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable | Qt.ItemIsSelectable)
+                items.append(chk)
 
-        self.view.resizeColumnsToContents()
-        self._apply_header_bounds()
+            # resto de columnas en orden de headers (saltando "Editar" si aplica)
+            for hname in (headers[1:] if not state else headers):
+                it = QStandardItem(str(r.get(hname, "")))
+                it.setEditable(False)
+                items.append(it)
+
+            self.model.appendRow(items)
+
+        self._apply_header_bounds(state)   # <<-- una sola función
 
     # ---------- Inventor Model Integration ----------
 
@@ -847,6 +891,11 @@ class MetricsEditorView(QFrame):
         try:
             for p in part_paths:
                 # Buscar si la pieza ya está abierta
+
+                if "skeleton" in Path(p).name.lower():
+                    print(f"↪ Omitida por filtro: {p}")
+                    continue
+
                 part_doc = None
                 for i in range(1, docs.Count + 1):
                     d = docs.Item(i)

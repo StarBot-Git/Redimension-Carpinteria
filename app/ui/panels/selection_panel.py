@@ -41,17 +41,23 @@ class SelectionPanel(QWidget):
 
       # ========= ComboBoxes =========
 
-      self._model_Type = self._field(wrap, "Tipo de modelo:", ["Tipo de modelo..."])
-      self._model = self._field(wrap, "Modelo:", ["Modelo..."])
+      cb_container = QVBoxLayout()
+      cb_container.setContentsMargins(0,0,0,0)
+      cb_container.setSpacing(14)
+
+      self._project = self._field(cb_container, "Proyecto:", ["Seleccione un proyecto..."])
+      self._model_Type = self._field(cb_container, "Tipo de modelo:", ["Tipo de modelo..."])
+      self._model = self._field(cb_container, "Modelo:", ["Modelo..."])
 
       # divider = QFrame(self)
       # divider.setObjectName("TopDivider")
       # divider.setFrameShape(QFrame.HLine)
       # wrap.addWidget(divider)
 
-      self._material = self._field(wrap, "Material:", ["Material..."])
-      self._edge = self._field(wrap, "Tipo de canto:", ["Tipo de canto..."])
+      self._material = self._field(cb_container, "Material:", ["Material..."])
+      self._edge = self._field(cb_container, "Tipo de canto:", ["Tipo de canto..."])
 
+      wrap.addLayout(cb_container)
       wrap.setSpacing(20)
       wrap.addStretch(1)  
 

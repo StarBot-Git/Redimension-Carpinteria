@@ -404,6 +404,9 @@ class MetricsEditorView(QFrame):
         for col in ['Ancho', 'Alto', 'Espesor', 'A1', 'A2', 'L1', 'L2']:
             df_agrupado[col] = pd.to_numeric(df_agrupado[col], errors='coerce')
 
+        # Espesor en metros
+        df_agrupado['Espesor'] = df_agrupado['Espesor'] / 1000.0
+
         # Contar cantidad de piezas
         df_agrupado['Cantidad'] = df.groupby('Designación').size().values
 
@@ -411,7 +414,7 @@ class MetricsEditorView(QFrame):
         mask_area = df_agrupado['Alto'].gt(0) & df_agrupado['Ancho'].gt(0)
         df_agrupado['Area - final'] = ''
         df_agrupado.loc[mask_area, 'Area - final'] = (
-            (df_agrupado.loc[mask_area, 'Alto'] * df_agrupado.loc[mask_area, 'Ancho'] / 10000)
+            ((df_agrupado.loc[mask_area, 'Alto']/1000) * (df_agrupado.loc[mask_area, 'Ancho']/1000))
             .round(2).astype(str) + ' m²'
         )
 
@@ -445,8 +448,18 @@ class MetricsEditorView(QFrame):
             tiene_L2 = safe_num(row['L2'], 0) == 1.0
 
             # Ancho del canto:
-            # match row['Ancho']:
-            #     case ""
+            ancho_canto = 0
+
+            if espesor >= 0 and espesor <= 0.015:
+                ancho_canto = 0.019
+            elif espesor > 0.015 and espesor <= 0.019:
+                ancho_canto = 0.022
+            elif espesor > 0.019 and espesor <= 0.030:
+                ancho_canto = 0.033
+            elif espesor > 0.030 and espesor <= 0.036:
+                ancho_canto = 0.044
+            elif espesor > 0.036 or espesor == 0.050:
+                ancho_canto = 0.055
 
             # Cantos A
             if tiene_A1 or tiene_A2:
@@ -456,7 +469,7 @@ class MetricsEditorView(QFrame):
                     'Designación': f"{nombre_pieza} - A",
                     'Cantidad': cantidad_cantos_A,
                     'Alto': alto_canto_A,
-                    'Ancho': 0.019,
+                    'Ancho': ancho_canto,
                     'Espesor': 0,
                     'Area - final': '',
                     'Tipo': 'Canto',  # ← Aquí está!
@@ -475,7 +488,7 @@ class MetricsEditorView(QFrame):
                     'Designación': f"{nombre_pieza} - L",
                     'Cantidad': cantidad_cantos_L,
                     'Alto': alto_canto_L,
-                    'Ancho': 0.019,
+                    'Ancho': ancho_canto,
                     'Espesor': 0,
                     'Area - final': '',
                     'Tipo': 'Canto',  # ← Aquí también!

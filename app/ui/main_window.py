@@ -17,16 +17,17 @@ class MainWindow(QMainWindow):
 
         # ======== Configuracion inicial ========
 
-        self.setWindowTitle(settings.APP_NAME)
-        self.resize(settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT)
-        self.setWindowIcon(QIcon(settings.LOGO_DIR))
+        self.setWindowTitle(settings.APP_NAME) # Nombre de la aplicacion
+        self.resize(settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT) # Tamaño inicial
+        self.setWindowIcon(QIcon(settings.LOGO_DIR)) # Logo All Star | Barra de la App
 
-        self.inventor = None # Variable Inventor
+        self.inventor = None # Inventor | Inicialmente vacio
+        self.DB = RepositoryDB() # Base de datos | Conexion Inicial
 
         # ======== Layout principal ========
 
         central = QWidget(self) # Contenedor principal
-        central.setObjectName("central") 
+        central.setObjectName("central")
 
         root = QVBoxLayout(central) # Contenedor raiz
         root.setContentsMargins(0,0,0,0)
@@ -48,48 +49,47 @@ class MainWindow(QMainWindow):
 
         root.addWidget(divider)
 
-        # ======== Contenedor | Sidebar + Content ========
+        # ======== Subcontenedor | Sidebar + Content/Table ========
             # - Sidebar (panel de selección)
             # - Separador vertical (decorativo)
-            # - Content (vista dinámica)
+            # - Content/Table (vista dinámica)
 
-        row = QHBoxLayout()
-        row.setContentsMargins(16,16,16,16)
-        row.setSpacing(16)
+        dynamism_container = QHBoxLayout()
+        dynamism_container.setContentsMargins(16,16,16,16)
+        dynamism_container.setSpacing(16)
         
-        root.addLayout(row)
+        root.addLayout(dynamism_container)
 
         # ========= Sidebar (panel de selección) ========
 
         self.sidebar = SelectionPanel(self) # Panel Lateral | .py externo
         self.sidebar.setFixedWidth(285)
 
-        self.DB = RepositoryDB() # Instancia de conexion a base de datos
-
         self._SelectionPanelController = SelectionPanelController(self, self.DB) # Controlador del panel de selección
         self._SelectionPanelController.Start_SP() # Cargar datos iniciales proveniente de la base de datos
 
-        row.addWidget(self.sidebar, 0, Qt.AlignTop)
+        dynamism_container.addWidget(self.sidebar, 0, Qt.AlignTop)
 
         # ========= Separador vertical | Decorativo ========
 
         vsep = QFrame(self); vsep.setObjectName("SideDivider"); vsep.setFrameShape(QFrame.VLine)
-        row.addWidget(vsep)
+        dynamism_container.addWidget(vsep)
 
-        # ========= Contenedor formulario ========
+        # ========= Contenedor de la tabla ========
 
         self.content = QWidget(self)
         self.content.setObjectName("ContentArea")
+
         content_layout = QVBoxLayout(self.content)
         content_layout.setContentsMargins(8, 8, 8, 8)
         content_layout.setSpacing(8)
 
-        # ========= Vista de formulario (MetricsEditorView) ========
+        # ========= Vista de Tabla (MetricsEditorView) ========
 
-        self.metrics_view = MetricsEditorView(self.content)
+        self.metrics_view = MetricsEditorView(self.content) # Tabla de metricas y propiedades | .py externo
         content_layout.addWidget(self.metrics_view, 1)
 
-        row.addWidget(self.content, 1)
+        dynamism_container.addWidget(self.content, 1)
 
         # ======== Inicialización | Widget central ========
         self.setCentralWidget(central)
@@ -114,6 +114,13 @@ class MainWindow(QMainWindow):
                 # === cierra Inventor ===
                 self.metrics_view.inventor.Quit()
                 print("✅ Inventor cerrado desde MainWindow")
+
+            try:
+                if hasattr(self, "DB") and self.DB:
+                    self.DB.close()
+                    print("✅ DB cerrada")
+            except Exception as e:
+                print(f"⚠ No se pudo cerrar la base de datos: {e}")
 
         except Exception as e:
             print(f"⚠ No se pudo cerrar Inventor: {e}")

@@ -1,11 +1,18 @@
 from PySide6.QtWidgets import QFrame, QLabel, QWidget, QHBoxLayout, QPushButton
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon
-from app.config import settings
 
 from app.controllers.topbar_controller import TopBarController
 
 class TopBar(QFrame):
+    """
+        class TopBar():
+            - Titulo de proyecto
+            - Breadcrumbs text
+            - Boton 'Cotizar'
+            - Boton 'Seccionar'
+            - Boton 'Informacion'
+    """
     def __init__(self, parent:QWidget | None = None):
         super().__init__(parent)
         self.setObjectName("TopBar")
@@ -18,10 +25,13 @@ class TopBar(QFrame):
 
         # ======== Titulo de la barra =========
 
-        self._title = QLabel(settings.APP_NAME, self)
+        self._title = QLabel("Seleccione un proyecto...", self)
         self._title.setObjectName("TopBarTitle")
 
         aux_layout.addWidget(self._title, 0, Qt.AlignVCenter)
+
+        vsep = QFrame(self); vsep.setObjectName("SideDivider"); vsep.setFrameShape(QFrame.VLine)
+        aux_layout.addWidget(vsep)
 
         # ========= Creacion de Breadcrumbs ========
 
@@ -44,7 +54,7 @@ class TopBar(QFrame):
         #self.button_CutSaw.clicked.connect()
         self.set_TopBar_Button_Style(self.button_CutSaw, icon_path=r"assets\icons\saw.svg")
 
-        self.button_Information = QPushButton("Informacion")
+        self.button_Information = QPushButton("")
         #self.button_Information.clicked.connect()
         self.set_TopBar_Button_Style(self.button_Information, icon_path=r"assets\icons\info.svg")
 
@@ -58,6 +68,7 @@ class TopBar(QFrame):
         self.set_breadcrumbs(["Products", "Type Model", "Select Model"])
 
         # =========================================
+
 
     def set_breadcrumbs(self, crumbs: list[str]) -> None:
 
@@ -79,10 +90,10 @@ class TopBar(QFrame):
                 self._crumbs_Layout.addWidget(separator)
 
     def set_TopBar_Button_Style(self, button:QPushButton, icon_path:str = ""):
+
         # === Estilo base | Button ===
         button.setObjectName("TopBar_Button")
-        button.setEnabled(False)
-        #button.setMinimumHeight(18)
+        button.setEnabled(True)
         button.setCursor(Qt.PointingHandCursor)
 
         if icon_path:

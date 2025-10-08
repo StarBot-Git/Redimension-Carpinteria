@@ -1,3 +1,9 @@
+import os
+import win32com.client
+import pandas as pd
+from pathlib import Path
+from openpyxl import load_workbook
+
 from PySide6.QtWidgets import (
     QFrame, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QTableView, QSizePolicy, QHeaderView
@@ -5,21 +11,28 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon
-import win32com.client
-import os
-import pandas as pd
-from pathlib import Path
-from openpyxl import load_workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
+
 
 class MetricsEditorView(QFrame):
     # ======== Headers | Tabla metrica ========
-    HEADERS = HEADERS_METRICS = ["Parametro", "Valor", "Unidad"]
+    HEADERS_METRICS = ["Parametro", "Valor", "Unidad"]
     HEADERS_PROPS = ["Pieza", "Material", "Material Canto", "A1", "A2", "L1", "L2"]
 
     # ======== Parametros de salida | Despiece ========
     PARAMETROS_SALIDA = ["Ancho", "Alto", "Espesor"]
 
+    """
+        MetricsEditorView():
+            - Titulo de modelo
+            - Boton 'modo de tabla': Metricas o Propiedades
+            - Barra de busqueda
+            - Boton 'Ver Modelo'
+            - Boton 'Planos'
+            - Boton 'Despiece CSV'
+            - Boton 'Cargar cambios'
+            - Boton 'Guardar cambios'
+            - Tabla de valores | Metricas o Propiedades del modelo
+    """
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setObjectName("MetricsCard")
@@ -35,16 +48,15 @@ class MetricsEditorView(QFrame):
         root_sup = QHBoxLayout()
         root_sup.setContentsMargins(16, 16, 16, 16)
 
-        # - Titulo de modelo -
+        # --- Titulo de modelo ----
         self.title = QLabel("Editor de metricas")
         self.title.setObjectName("MetricsCardTitle")
         
-        # - Boton | Modo metricas o propiedades -
+        # --- Boton | Modo metricas o propiedades ---
         self.btn_Table = QPushButton("Metricas")
         self.btn_Table.clicked.connect(self.toggle_table)
         self.btn_Table.setProperty("State", True) # True -> Metricas
         self.set_Button_Style(self.btn_Table, icon_path="assets/icons/toggle_State1.svg")
-
         
         root_sup.addWidget(self.title)
         root_sup.addStretch(1)
@@ -57,7 +69,7 @@ class MetricsEditorView(QFrame):
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
 
-        # ======== Barra buscadora de metricas ========
+        # --- Barra buscadora de metricas ---
 
         self.search = QLineEdit()
         self.search.setPlaceholderText("Buscar metrica...")
@@ -69,22 +81,28 @@ class MetricsEditorView(QFrame):
         # ======== Botones | Funcionalidades varias ========
 
         actions = QHBoxLayout()
+
+        # --- Boton | Ver Modelo ---
         self.btn_Model   = QPushButton(" Ver Modelo")
         self.btn_Model.clicked.connect(self.on_view_model)
         self.set_Button_Style(self.btn_Model, icon_path="assets/icons/eye.svg")
 
+        # --- Boton | Planos ---
         self.btn_Drawings = QPushButton(" Planos")
         self.btn_Drawings.clicked.connect(self.on_view_drawings)
         self.set_Button_Style(self.btn_Drawings, icon_path="assets/icons/blueprint.svg")
 
+        # --- Boton | Despiece CSV ---
         self.btn_Import= QPushButton(" Despiece CSV")
-        self.btn_Import.clicked.connect(self.on_import_csv)
+        self.btn_Import.clicked.connect(self.on_export_csv)
         self.set_Button_Style(self.btn_Import, icon_path="assets/icons/download.svg")
 
+        # --- Boton | Cargar cambios ---
         self.btn_Load = QPushButton(" Cargar cambios")
         self.btn_Load.clicked.connect(self.on_load_changes)
         self.set_Button_Style(self.btn_Load, icon_path="assets/icons/upload.svg")
 
+        # --- Boton | Guardar Cambios ---
         self.btn_Save= QPushButton(" Guardar Cambios")
         self.btn_Save.clicked.connect(self.on_save_changes)
         self.set_Button_Style(self.btn_Save, icon_path="assets/icons/save.svg")
@@ -100,8 +118,8 @@ class MetricsEditorView(QFrame):
 
         # ======== Tabla de metricas ========
 
-        self.rows_metrics = []
-        self.rows_props = []
+        self.rows_metrics = [] # Metricas del modelo actual
+        self.rows_props = [] # Propiedades del modelo actual
 
         self.view = QTableView(self)
         self.view.setObjectName("MetricsTable")
@@ -112,8 +130,8 @@ class MetricsEditorView(QFrame):
 
         # - Modelo | Tabla metrica -
 
-        self.model = QStandardItemModel(0, len(self.HEADERS), self) # 0 filas, n columnas
-        self.model.setHorizontalHeaderLabels(self.HEADERS) # Encabezados de columnas
+        self.model = QStandardItemModel(0, len(self.HEADERS_METRICS), self) # 0 filas, n columnas
+        self.model.setHorizontalHeaderLabels(self.HEADERS_METRICS) # Encabezados de columnas
         self.view.setModel(self.model)
 
         # Oculta header vertical y quita boton de esquina
@@ -143,6 +161,10 @@ class MetricsEditorView(QFrame):
 
     # ---------- Buttons ----------
 
+    """
+        set_Button_Style():
+            Estilo base de los botones relacionados a la tabla
+    """
     def set_Button_Style(self, button: QPushButton, icon_path: str = ""):
 
         # === Estilo base | Button ===
@@ -155,6 +177,10 @@ class MetricsEditorView(QFrame):
             button.setIcon(QIcon(icon_path)) 
             button.setIconSize(QSize(16, 16))  
 
+    """
+        on_view_model():
+            Funcion encargada de abrir visualmente el modelo actual desde Inventor
+    """
     def on_view_model(self):
 
         # === Verificacion | assembler document ===
@@ -162,7 +188,7 @@ class MetricsEditorView(QFrame):
         iam_files = list(folder.glob("*.iam"))
 
         if iam_files:
-            asm_path = str(iam_files[0])  # primer .iam que encuentre
+            asm_path = str(iam_files[0])  # primer .iam que hay
             print(f"✅ Ensamble encontrado: {asm_path}")
         else:
             asm_path = None
@@ -172,17 +198,25 @@ class MetricsEditorView(QFrame):
             self.asmDoc = self.inventor.Documents.Open(asm_path)
             print("✅ Ensamble CUERPO abierto")
         else:
-
             print("❌ No se encontró el archivo de ensamble")
             return
-        print("3")
+        
         # === Mostrar Inventor ===
         self.inventor.Visible = True
 
+    """
+        on_view_drawings():
+            Funcion que permite generar los planos de un modelo
+    """
     def on_view_drawings(self):
         print("Ver planos")
+        # FUNCION PENDIENTE
 
-    def on_import_csv(self):
+    """
+        on_import_csv():
+            Funcion encargada de exportar el despiece en formato Excel
+    """
+    def on_export_csv(self):
         data = [] # Tabla de salida
 
         # === Verificar | Ensamble abierto ===
@@ -197,7 +231,6 @@ class MetricsEditorView(QFrame):
             print("❌ No se encontró ningún archivo .iam")
 
         if os.path.exists(asm_path):
-
             self.asmDoc = self.inventor.Documents.Open(asm_path)
             print("✅ Ensamble abierto para importar")
         else:
@@ -212,24 +245,27 @@ class MetricsEditorView(QFrame):
 
             print(f"📦 Componente: {nombre}")
 
+            # Si: El documento actual no es una pieza, entonces, pase al siguiente
             if "ipt" not in nombre:
                 continue
 
-            nombre = nombre.split('.')[0]
+            nombre = nombre.split('.')[0] # Quitar el formato del documento.
 
-            fila = {"Designación": nombre}
-            fila ["Tipo"] = "Tablero"
+            fila = {"Designación": nombre} # Columna | Nombre
+            fila["Tipo"] = "Tablero" # Columna | Tipo
 
             # ====== Busqueda | Pieza en la tabla de propiedades ======
-
             pieza_actual = None
 
             for row in self.rows_props:
                 if row.get("Pieza") in nombre.split('.')[0]:
+
                     pieza_actual = row
                     print(f"✅ ES: {row.get("Pieza")}")
+
                     break
 
+            # ====== Adjuntar | Informacion de la propiedades de la pieza ======
             if pieza_actual:
                 fila["Material"] = pieza_actual.get("Material")
                 fila["Material Canto"] = pieza_actual.get("Material Canto")
@@ -238,11 +274,11 @@ class MetricsEditorView(QFrame):
                 fila["L1"] = pieza_actual.get("L1")
                 fila["L2"] = pieza_actual.get("L2")
 
+            # ====== Adjuntar | Parametros de la pieza ======
             try:
                 params = partDoc.ComponentDefinition.Parameters
 
                 for clave in self.PARAMETROS_SALIDA:
-
                     try:
                         fila[clave] = params.Item(clave).Value*10  # Convertir cm a mm
                     except:
@@ -254,34 +290,35 @@ class MetricsEditorView(QFrame):
             
             data.append(fila)
 
-        # === Conversion | Dataframe
-        df = pd.DataFrame(data)
-        print(df)
-        output_csv = Path.home() / "Desktop" / f"despiece-{self.model_name}.xlsx"
-        print(output_csv)
+        # === Conversion | Dataframe ===
 
+        df = pd.DataFrame(data)
         df = self.breakdown_CSV_Format(df=df)
-        print(df)
 
         # === Exportar | Despiece ===
 
+        output_csv = Path.home() / "Desktop" / f"despiece-{self.model_name}.xlsx"
+
         wb = load_workbook(r"assets\templates\despiece.xlsx")
-        ws = wb["Despiece"]        # la hoja con tu diseño/formatos
+        ws = wb["Despiece"] # Hoja donde esta el diseño
 
         start_row, start_col = 1, 2   # B1
+
         # Escribir encabezados
         for j, col in enumerate(df.columns, start=start_col):
             ws.cell(row=start_row, column=j).value = col
-
         # Escribir filas
         for i, row in enumerate(df.itertuples(index=False), start=start_row+1):
             for j, val in enumerate(row, start=start_col):
                 ws.cell(row=i, column=j).value = val
 
         wb.save(output_csv)
-
         print(f"Archivo generado en: {output_csv}")
 
+    """
+        on_save_changes():
+            Guardar los cambios realizados al modelo actual.
+    """
     def on_save_changes(self):
         if hasattr(self, "asmDoc") and self.asmDoc is not None:
             self.inventor.SilentOperation = True  
@@ -297,6 +334,10 @@ class MetricsEditorView(QFrame):
 
             self.inventor.SilentOperation = False
 
+    """
+        on_load_changes():
+            Actualizar el modelo con los cambios aplicados.
+    """
     def on_load_changes(self):
         # Asegurarnos que el ensamble está abierto
         folder = Path(self.model_path)
@@ -361,9 +402,17 @@ class MetricsEditorView(QFrame):
             except Exception as e:
                 print(f"⚠ No se pudo reconstruir rows_metrics: {e}")
 
+    """
+        toggle_table():
+            Cambiar el tipo de tabla que se esta visualizando.
+    """
     def toggle_table(self):
-        current_state = bool(self.btn_Table.property("State"))
-        new_state = not current_state
+        # -- Extraer | Estado actual de la tabla --
+        current_state = bool(self.btn_Table.property("State")) # True -> Metricas | False -> Propiedades
+
+        new_state = not current_state # Toggle del estado actual
+
+        # -- Cambio | Estado y contenido de la tabla --
         self.btn_Table.setProperty("State", new_state)
         print(f"Nuevo estado: {new_state}")
 
@@ -384,10 +433,14 @@ class MetricsEditorView(QFrame):
         self.btn_Table.style().polish(self.btn_Table)
         self.btn_Table.update()
 
-    # ---------- Table Data Handling ----------
+    # ---------- Breakdown Format ----------
 
+    """
+        breakdown_CSV_Format():
+            Funcion encargada de formatear el Dataframde para el despiece
+    """
     def breakdown_CSV_Format(self, df: pd.DataFrame):
-        # === 1) Agrupar ===
+        # == Agrupar ==
         df_agrupado = df.groupby('Designación', as_index=False).agg({
             'Ancho': 'first',
             'Alto': 'first', 
@@ -400,39 +453,40 @@ class MetricsEditorView(QFrame):
             'L2': 'first'
         })
 
-        # Normalizar a número (NaN si no es numérico)
+        # == Convertir a numero o NaN ==
         for col in ['Ancho', 'Alto', 'Espesor', 'A1', 'A2', 'L1', 'L2']:
             df_agrupado[col] = pd.to_numeric(df_agrupado[col], errors='coerce')
 
-        # Espesor en metros
+        # == Espesor en metros ==
         df_agrupado['Espesor'] = df_agrupado['Espesor'] / 1000.0
 
-        # Contar cantidad de piezas
+        # == Contar cantidad de piezas ==
         df_agrupado['Cantidad'] = df.groupby('Designación').size().values
 
-        # === 2) Área segura ===
+        # == Area Final en m² ==
         mask_area = df_agrupado['Alto'].gt(0) & df_agrupado['Ancho'].gt(0)
-        df_agrupado['Area - final'] = ''
-        df_agrupado.loc[mask_area, 'Area - final'] = (
-            ((df_agrupado.loc[mask_area, 'Alto']/1000) * (df_agrupado.loc[mask_area, 'Ancho']/1000))
-            .round(2).astype(str) + ' m²'
-        )
 
-        # === Agregar columna Tipo = "Tablero" para las originales ===
+        df_agrupado['Area - final'] = ''
+        df_agrupado.loc[mask_area, 'Area - final'] = (((df_agrupado.loc[mask_area, 'Alto']/1000) * (df_agrupado.loc[mask_area, 'Ancho']/1000)).round(2).astype(str) + ' m²')
+
+        # == Agregar columna Tipo = "Tablero" ==
         df_agrupado['Tipo'] = 'Tablero'
 
-        # === 3) Tabla principal (CON Tipo, A1, A2, L1, L2) ===
+        # == Tabla principal organizada ==
         df_principal = df_agrupado[['Designación', 'Cantidad', 'Alto', 'Ancho', 'Espesor', 
                                     'Area - final', 'Tipo', 'Material', 'A1', 'A2', 'L1', 'L2']].copy()
 
-        # === 4) Filas de cantos (seguras ante NaN) ===
+        # == Verificador NaN ==        
         def safe_num(x, default=0.0):
             return float(x) if pd.notna(x) else default
 
+        # == Filas de cantos ==
         filas_cantos = []
         for _, row in df_agrupado.iterrows():
             nombre_pieza = row['Designación']
+
             cantidad_pieza = int(safe_num(row['Cantidad'], 0))
+
             ancho = safe_num(row['Ancho'], 0.0)
             alto = safe_num(row['Alto'], 0.0)
             espesor = safe_num(row['Espesor'], 0.0)
@@ -507,34 +561,31 @@ class MetricsEditorView(QFrame):
 
     # ---------- Table Data Handling ----------
 
+    """
+        _parse_number():
+            Funcion para convertir a dato flotante
+    """
     def _parse_number(self, v):
         """Convierte el valor de la celda a float si se puede (soporta '1,23')."""
         if isinstance(v, (int, float)):
-            return float(v)  # Convertir cm a mm
+            return float(v)
+        
         s = str(v).strip()
         if not s:
             return None
+        
         try:
             return float(s.replace(",", "."))  # 1,23 -> 1.23
         except ValueError:
-            return None  # o devuelve s si prefieres preservar cadenas
+            return None
 
-    def get_rows(self) -> list[dict]:
-        """Devuelve todas las filas como lista de dicts con las llaves que usamos en la UI."""
-        rows = []
-        for r in range(self.model.rowCount()):
-            rows.append({
-                "Parametro": self.model.item(r, 0).text().strip() if self.model.item(r, 0) else "",
-                "Valor":     self.model.item(r, 1).text().strip() if self.model.item(r, 1) else "",
-                "Unidad":    self.model.item(r, 2).text().strip() if self.model.item(r, 2) else "",
-            })
-        return rows
-
+    """
+        get_param_dict():
+            Devuelve { PARAMETRO: VALOR } para usarlo igual que los 'parametros'.
+            Si un valor no es numérico o está vacío, deja None.
+    """
     def get_param_dict(self) -> dict[str, float | None]:
-        """
-        Devuelve { PARAMETRO: VALOR } para usarlo igual que tu 'parametros' del Excel.
-        Si un valor no es numérico o está vacío, deja None (ajústalo si prefieres otra cosa).
-        """
+        
         d = {}
         for r in range(self.model.rowCount()):
             name_item = self.model.item(r, 0)
@@ -549,6 +600,10 @@ class MetricsEditorView(QFrame):
     
     # ---------- Table Setup ----------
 
+    """
+        _apply_header_bounds():
+            Funcion que estiliza el Header de la tabla
+    """
     def _apply_header_bounds(self):
         h = self.view.horizontalHeader()
         h.setStretchLastSection(False)
@@ -565,7 +620,12 @@ class MetricsEditorView(QFrame):
         h.setSectionResizeMode(2, QHeaderView.Fixed)             # Unidad fijo
         self.view.setColumnWidth(2, 72)
 
+    """
+        set_TableData():
+            Funcion que actualiza la tabla segun su modo(Metricas o Propiedades).
+    """
     def set_TableData(self, state: bool):
+        # === Seleccion | Metricas o Propiedades ===
         if state == True:
             headers = self.HEADERS_METRICS
             rows = self.rows_metrics
@@ -577,16 +637,6 @@ class MetricsEditorView(QFrame):
         self.model.setHorizontalHeaderLabels(headers)
         self.model.removeRows(0, self.model.rowCount())
 
-        # if state == True:
-        #     for r in range(self.model.rowCount()):
-        #         it = self.model.item(r, 1)
-        #         it.setFlags(it.flags() | Qt.ItemIsEditable)
-        # else:
-        #     for r in range(self.model.rowCount()):
-        #         for c in range(self.model.columnCount()):
-        #             it = self.model.item(r, c)
-        #             it.setFlags(it.flags() & ~Qt.ItemIsEditable)
-
         for r in rows:
             self.model.appendRow([QStandardItem(str(v)) for v in r.values()])
 
@@ -595,10 +645,14 @@ class MetricsEditorView(QFrame):
 
     # ---------- Inventor Model Integration ----------
 
+    """
+        load_inventor_model():
+            Funcion encargada de cargar los datos(metricas y propiedades) del modelo seleccionado.
+    """
     def load_inventor_model(self, model_path: str, loading_Bar):
         print(f"Cargando modelo de Inventor desde: {model_path}")
 
-            # === Conexion con Inventor ===
+        # === Conexion con Inventor ===
 
         loading_Bar.set_Text("Cargando modelo de Inventor...")
         loading_Bar.set_Progress(4)
@@ -670,6 +724,9 @@ class MetricsEditorView(QFrame):
     
     # ---------- Inventor | Propiedades del ensamble ----------
 
+    """
+        faces_by_tag():
+    """
     def faces_by_tag(sel, doc, tag: str):
         """Devuelve lista de entidades (faces/proxies) con iLogicEntityName == tag en un PartDocument."""
         am = doc.AttributeManager
@@ -692,6 +749,9 @@ class MetricsEditorView(QFrame):
                     pass
             return res
 
+    """
+        collect_part_paths():
+    """
     def collect_part_paths(self, asm_doc):
         """Recorre el ensamble (recursivo) y devuelve rutas únicas de todas las piezas .ipt."""
         seen = set()
@@ -715,6 +775,9 @@ class MetricsEditorView(QFrame):
         walk(asm_doc)
         return sorted(seen)
 
+    """
+        extract_props_from_part():
+    """
     def extract_props_from_part(self, doc):
         """Extrae Material, Material Canto y banderas A1/A2/L1/L2 de un PartDocument ya abierto."""
         # Material
@@ -748,6 +811,9 @@ class MetricsEditorView(QFrame):
             "L2": 1 if presentes["L2"] else 0,
         }
 
+    """
+        extract_properties_table_from_assembly():
+    """
     def extract_properties_table_from_assembly(self, asm_path: str) -> list[dict]:
         """
         Abre el .iam (si no está abierto), recorre todas las .ipt referenciadas y
@@ -807,4 +873,3 @@ class MetricsEditorView(QFrame):
                     pass
 
         return rows
-

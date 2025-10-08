@@ -1,6 +1,8 @@
 from PySide6.QtWidgets import QFrame, QLabel, QComboBox, QVBoxLayout, QWidget
 from PySide6.QtCore import Qt
 
+# ====== Librerias propias ======
+
 from app.ui.widgets.loadingBar_widget import LoadingWidget
 
 class SelectionPanel(QWidget):
@@ -11,7 +13,6 @@ class SelectionPanel(QWidget):
       - Combo Boxes
       - Loading Widget
   """
-
   def __init__(self, parent: QWidget | None = None) -> None:
       super().__init__(parent)
       self.setObjectName("SelectionPanel")
@@ -42,6 +43,12 @@ class SelectionPanel(QWidget):
 
       self._model_Type = self._field(wrap, "Tipo de modelo:", ["Tipo de modelo..."])
       self._model = self._field(wrap, "Modelo:", ["Modelo..."])
+
+      # divider = QFrame(self)
+      # divider.setObjectName("TopDivider")
+      # divider.setFrameShape(QFrame.HLine)
+      # wrap.addWidget(divider)
+
       self._material = self._field(wrap, "Material:", ["Material..."])
       self._edge = self._field(wrap, "Tipo de canto:", ["Tipo de canto..."])
 
@@ -50,18 +57,18 @@ class SelectionPanel(QWidget):
 
       # ========= Loading widget | Diseño propio =========
 
-      self.loading = LoadingWidget()
+      self.loading = LoadingWidget() # Barra de carga | .py externo
       self.loading.setVisible(False)
 
       wrap.addWidget(self.loading)
 
       # ==================================================
 
+
   """
     _field():
       Metodo que crea etiqueta y elementos de los Combo Box.
   """
-
   def _field(self, parent_layout: QVBoxLayout, label_text: str, items: list[str]) -> QComboBox:
       
       # ========= Etiqueta | ComboBox =========

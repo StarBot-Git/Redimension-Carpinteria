@@ -3,7 +3,7 @@ from pathlib import Path
 
 # ======== IDENTIDAD VENTANA =========
 
-APP_NAME = "Diseñador de Produccion"
+APP_NAME = "Star Lift"
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 640
 
@@ -17,6 +17,9 @@ ROOT_DIR = Path(__file__).parent.parent.parent
 ASSETS_DIR = ROOT_DIR / "assets"
 
 LOGO_DIR = str(ASSETS_DIR / "icons" / "all_star_logo.svg")
+
+ONEDRIVE_CARPENTRY_DIR = str(Path.home() / "OneDrive" / "Carpintería")
+ONEDRIVE_MODELS_DIR = str(Path.home() / "OneDrive" / "Carpintería" / "Modelos Produccion")
 
 # Futuras opciones centralizadas:
 # DB_URL = "sqlite:///carpentry.db"

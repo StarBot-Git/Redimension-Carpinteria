@@ -19,7 +19,7 @@ from app.ui.widgets.table_check import CheckDelegate
 class MetricsEditorView(QFrame):
     # ======== Headers | Tabla metrica ========
     HEADERS_METRICS = ["Parametro", "Valor", "Unidad"]
-    HEADERS_PROPS = ["Pieza", "Material", "Material Canto", "A1", "A2", "L1", "L2"]
+    HEADERS_PROPS = ["Pieza", "Material", "Texturizado", "Material Canto", "A1", "A2", "L1", "L2"]
 
     # ======== Parametros de salida | Despiece ========
     PARAMETROS_SALIDA = ["Ancho", "Largo", "Espesor"]
@@ -281,6 +281,7 @@ class MetricsEditorView(QFrame):
                 fila["A2"] = pieza_actual.get("A2")
                 fila["L1"] = pieza_actual.get("L1")
                 fila["L2"] = pieza_actual.get("L2")
+                fila["Texturizado"] = pieza_actual.get("Texturizado")
 
             # ====== Adjuntar | Parametros de la pieza ======
             try:
@@ -458,7 +459,8 @@ class MetricsEditorView(QFrame):
             'A1': 'first',
             'A2': 'first',
             'L1': 'first',
-            'L2': 'first'
+            'L2': 'first',
+            'Texturizado': 'first'
         })
 
         # == Convertir a numero o NaN ==
@@ -482,7 +484,7 @@ class MetricsEditorView(QFrame):
 
         # == Tabla principal organizada ==
         df_principal = df_agrupado[['Designación', 'Cantidad', 'Largo', 'Ancho', 'Espesor', 
-                                    'Area - final', 'Tipo', 'Material', 'A1', 'A2', 'L1', 'L2']].copy()
+                                    'Area - final', 'Tipo', 'Material', 'A1', 'A2', 'L1', 'L2', 'Texturizado']].copy()
 
         # == Verificador NaN ==        
         def safe_num(x, default=0.0):
@@ -539,7 +541,8 @@ class MetricsEditorView(QFrame):
                     'A1': None,
                     'A2': None,
                     'L1': None,
-                    'L2': None
+                    'L2': None,
+                    'Texturizado': None
                 })
 
             # Cantos L
@@ -558,7 +561,8 @@ class MetricsEditorView(QFrame):
                     'A1': None,
                     'A2': None,
                     'L1': None,
-                    'L2': None
+                    'L2': None,
+                    'Texturizado': None
                 })
 
         df_cantos = pd.DataFrame(filas_cantos)
@@ -621,8 +625,11 @@ class MetricsEditorView(QFrame):
 
         if is_metrics:
             # Métricas: ["Parametro","Valor","Unidad"]
-            h.setSectionResizeMode(0, QHeaderView.Stretch)           # Parametro ocupa el espacio
+
+            # ------ Parametro | Se estira ------
+            h.setSectionResizeMode(0, QHeaderView.Stretch)
             self.view.setItemDelegateForColumn(0, QStyledItemDelegate(self.view))
+
             h.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Valor al contenido
             # opcional: dar un poquito más a "Valor"
             w = max(80, h.sectionSize(1) + 100)
@@ -630,23 +637,29 @@ class MetricsEditorView(QFrame):
             h.setSectionResizeMode(2, QHeaderView.Fixed)             # Unidad fijo
             self.view.setColumnWidth(2, 72)
         else:
-            # Propiedades: ["Editar","Pieza","Material","Material Canto","A1","A2","L1","L2"]
-            h.setSectionResizeMode(0, QHeaderView.Fixed)             # checkbox angosto
+            # Propiedades: ["Editar","Pieza","Material","Texturizado","Material Canto","A1","A2","L1","L2"]
+
+            # ------ checkbox | Angosto ------
+            h.setSectionResizeMode(0, QHeaderView.Fixed)             
             self.view.setItemDelegateForColumn(0, CheckDelegate(self.view))
             self.view.setColumnWidth(0, 28)
 
-            h.setSectionResizeMode(1, QHeaderView.Stretch)           # "Pieza" principal
+            # ------ Pieza | Se estira ------
+            h.setSectionResizeMode(1, QHeaderView.Stretch)
 
-            h.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # "Material"
-            h.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # "Material Canto"
+            # ------ Material | Se adapta al contenido ------
+            h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
-            for col in (4, 5, 6, 7):                                 # A1..L2 pequeños
+            # ------ Texturizado | Se adapta al contenido ------
+            h.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+
+            # ------ Material Canto | Se adapta al contenido ------
+            h.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+
+            # ------ A1,A2,L1,L2 | Angostos ------
+            for col in (5, 6, 7, 8):
                 h.setSectionResizeMode(col, QHeaderView.Fixed)
                 self.view.setColumnWidth(col, 36)
-
-        # (opcional pero útil)
-        # self.view.setSelectionBehavior(self.view.selectRow)
-        # self.view.setSelectionMode(self.view.ExtendedSelection)
 
 
     """
@@ -680,7 +693,12 @@ class MetricsEditorView(QFrame):
             # resto de columnas en orden de headers (saltando "Editar" si aplica)
             for hname in (headers[1:] if not state else headers):
                 it = QStandardItem(str(r.get(hname, "")))
+
                 it.setEditable(False)
+
+                if hname == "Valor":
+                    it.setEditable(True)
+
                 items.append(it)
 
             self.model.appendRow(items)
@@ -823,19 +841,26 @@ class MetricsEditorView(QFrame):
         extract_props_from_part():
     """
     def extract_props_from_part(self, doc):
-        """Extrae Material, Material Canto y banderas A1/A2/L1/L2 de un PartDocument ya abierto."""
+        """Extrae Material, Texturizado, Material Canto y banderas A1/A2/L1/L2 de un PartDocument ya abierto."""
         # Material
         try:
             material = doc.ComponentDefinition.Material.Name
         except:
             material = ""
 
+        # User Defined Property: "Texturizado"
+        texturizado = ""
+        try:
+            udp = doc.PropertySets.Item("Inventor User Defined Properties")
+            texturizado = udp.Item("Texturizado").Value
+        except:
+            pass
+
         # User Defined Property: "Material Canto"
         mat_canto = ""
         try:
             udp = doc.PropertySets.Item("Inventor User Defined Properties")
             mat_canto = udp.Item("Material Canto").Value
-
         except:
             pass
 
@@ -848,6 +873,7 @@ class MetricsEditorView(QFrame):
         return {
             "Pieza": pieza,
             "Material": material,
+            "Texturizado": texturizado or "NT",
             "Material Canto": mat_canto or "No especificado",
             "A1": 1 if presentes["A1"] else 0,
             "A2": 1 if presentes["A2"] else 0,

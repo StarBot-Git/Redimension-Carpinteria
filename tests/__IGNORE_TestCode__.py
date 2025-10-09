@@ -1,153 +1,99 @@
-import os
+# -*- coding: utf-8 -*-
+"""
+Generador de combinaciones (Proveedor 2)
+Material × Acabado × Sustrato(ST/RH) × Calibre([9,12,15,18,25,30,36])
+Guarda Excel: materiales_texturas_proveedor2.xlsx
+"""
+
+from itertools import product
 from pathlib import Path
-import pythoncom
-import win32com.client as win32
+import pandas as pd
 
-HEADERS_PROPS = ["Pieza", "Material", "Material Canto", "A1", "A2", "L1", "L2"]
+# === Configuración general ===
+FINISHES = ["Luna", "Amazona", "Terra", "Mate", "Poro", "PRIMAEXTI", "PRIMAFORZA"]
+SUSTRATOS = ["ST", "RH"]
+CALIBRES = [9, 12, 15, 18, 25, 30, 36]
 
-def faces_by_tag(doc, tag: str):
-    """Devuelve lista de entidades (faces/proxies) con iLogicEntityName == tag en un PartDocument."""
-    am = doc.AttributeManager
-    try:
-        objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName", tag)
-        return [o for o in objs]  # puede ser vacío
-    except:
-        # Fallback: buscar por set+attr y filtrar por value
-        try:
-            objs = am.FindObjects("iLogicEntityNameSet", "iLogicEntityName")
-        except:
-            return []
-        res = []
-        for o in objs:
-            try:
-                val = o.AttributeSets.Item("iLogicEntityNameSet").Item("iLogicEntityName").Value
-                if str(val) == tag:
-                    res.append(o)
-            except:
-                pass
-        return res
+# === Materiales (lista completa según tu foto) ===
+MATERIALES = [
+    "Andino","Flormorado","Ika","Kanua","Sapán","Tauarí","Brooklyn Oak","Cocuy","Iguaque","Majuy",
+    "Roble Cenizo","Rovere Arena","Rustic Sand","Sikuani","Tambo","Taroa","Tumaco","Ártico",
+    "Bacatá","Bareque","Chircal","Candelaria","Creta","Humo","Jayka","Maku","Sukta","Yalaa",
+    "Volcánico","Checua","Suesca","Tausa","Tihua","London","Glazé","Malí","Wengue","Cedro"
+]
 
-def collect_part_paths(asm_doc):
-    """Recorre el ensamble (recursivo) y devuelve rutas únicas de todas las piezas .ipt."""
-    seen = set()
-    def walk(doc):
-        try:
-            refs = doc.ReferencedDocuments
-        except:
-            refs = []
-        for r in refs:
-            try:
-                f = r.FullFileName
-            except:
-                continue
-            if not f:
-                continue
-            ext = Path(f).suffix.lower()
-            if ext == ".ipt":
-                seen.add(f)
-            elif ext == ".iam":
-                walk(r)
-    walk(asm_doc)
-    return sorted(seen)
+# === Disponibilidad de acabados por material ===
+# Rellena la lista con los acabados disponibles de cada material.
+# Ejemplos ya puestos (ajusta si algo difiere); el resto queda [] para completar rápido.
+AVAIL = {
+    "Andino":       ["Amazona"],              # ejemplo
+    "Flormorado":   ["Amazona","PRIMAFORZA"], # ejemplo
+    "Ika":          ["Amazona","PRIMAFORZA"], # ejemplo
+    "Kanua":        ["Amazona","PRIMAFORZA"],              # ejemplo
+    "Sapán":        ["Poro"],                       # completa
+    "Tauarí":       ["Amazona"],              # ejemplo
+    "Brooklyn Oak": ["Amazona"],              # ejemplo
+    "Cocuy":        ["Amazona","PRIMAEXTI"],                       # completa
+    "Iguaque":      ["Luna"],                       # completa
+    "Majuy":        ["Poro", "PRIMAEXTI"],                       # completa
+    "Roble Cenizo": ["Amazona","PRIMAEXTI"],       # ejemplo
+    "Rovere Arena": ["Amazona","PRIMAEXTI","PRIMAFORZA"],              # ejemplo
+    "Rustic Sand":  ["Amazona"],              # ejemplo
+    "Sikuani":      ["Poro", "PRIMAEXTI"],                       # completa
+    "Tambo":        ["Amazona","PRIMAEXTI"],              # ejemplo
+    "Taroa":        ["Amazona"],                       # completa
+    "Tumaco":       ["Poro", "PRIMAEXTI"],                       # completa
+    "Ártico":       ["Mate", "PRIMAFORZA"],              # ejemplo
+    "Bacatá":       ["Amazona"],      # ejemplo
+    "Bareque":      ["Terra"],                       # completa
+    "Chircal":      ["Amazona"],                       # completa
+    "Candelaria":   ["Mate"],                       # completa
+    "Creta":        ["Luna"],                       # completa
+    "Humo":         ["Luna","PRIMAEXTI","PRIMAFORZA"],              # ejemplo
+    "Jayka":        ["Amazona"],                       # completa
+    "Maku":         ["Amazona"],                       # completa
+    "Sukta":        ["Mate"],                       # completa
+    "Yalaa":        ["Amazona"],                       # completa
+    "Volcánico":    ["Amazona"],                       # completa
+    "Checua":       ["Luna", "PRIMAEXTI"],              # ejemplo
+    "Suesca":       ["Luna", "PRIMAEXTI"],              # ejemplo
+    "Tausa":        ["Luna", "PRIMAEXTI", "PRIMAFORZA"],              # ejemplo
+    "Tihua":        ["Luna", "PRIMAFORZA"],              # ejemplo
+    "London":       ["Luna", "PRIMAEXTI"],                       # completa
+    "Glazé":        ["Poro"],                       # completa
+    "Malí":         ["Poro"],                       # completa
+    "Wengue":       ["Poro"],                       # completa
+    "Cedro":        ["Poro"],                       # completa
+}
 
-def extract_props_from_part(doc):
-    """Extrae Material, Material Canto y banderas A1/A2/L1/L2 de un PartDocument ya abierto."""
-    # Material
-    try:
-        material = doc.ComponentDefinition.Material.Name
-    except:
-        material = ""
+# === Validación rápida (evita typos) ===
+unknown_materials = set(AVAIL.keys()) - set(MATERIALES)
+if unknown_materials:
+    raise ValueError(f"Materiales en AVAIL no están en MATERIALES: {sorted(unknown_materials)}")
 
-    # User Defined Property: "Material Canto"
-    mat_canto = ""
-    try:
-        udp = doc.PropertySets.Item("Inventor User Defined Properties")
-        mat_canto = udp.Item("Material Canto").Value
+for mat, acabados in AVAIL.items():
+    unknown_finishes = set(acabados) - set(FINISHES)
+    if unknown_finishes:
+        raise ValueError(f"Acabados inválidos para {mat}: {sorted(unknown_finishes)}. Válidos: {FINISHES}")
 
-    except:
-        pass
+# === Generar todas las combinaciones ===
+rows = []
+for material in MATERIALES:
+    acabados = AVAIL.get(material, [])
+    for acabado, sustrato, calibre in product(acabados, SUSTRATOS, CALIBRES):
+        rows.append({
+            "Material": material,
+            "Acabado": acabado,
+            "Sustrato": sustrato,
+            "Calibre": calibre,
+            "Costo unidad": ""  # queda vacío para diligenciar
+        })
 
-    # Tags presentes
-    tags = ["A1", "A2", "L1", "L2"]
-    presentes = {t: (len(faces_by_tag(doc, t)) > 0) for t in tags}
+df = pd.DataFrame(rows, columns=["Material", "Acabado", "Sustrato", "Calibre", "Costo unidad"])
 
-    pieza = Path(doc.FullFileName).stem if getattr(doc, "FullFileName", "") else doc.DisplayName
-
-    return {
-        "Pieza": pieza,
-        "Material": material,
-        "Material Canto": mat_canto or "No especificado",
-        "A1": 1 if presentes["A1"] else 0,
-        "A2": 1 if presentes["A2"] else 0,
-        "L1": 1 if presentes["L1"] else 0,
-        "L2": 1 if presentes["L2"] else 0,
-    }
-
-def extract_properties_table_from_assembly(asm_path: str) -> list[dict]:
-    """
-    Abre el .iam (si no está abierto), recorre todas las .ipt referenciadas y
-    devuelve list[dict] con HEADERS_PROPS.
-    """
-    pythoncom.CoInitialize()
-    inv = win32.Dispatch("Inventor.Application")
-    # No forzamos visible; déjalo como tengas tu instancia principal
-    # inv.Visible = False
-
-    docs = inv.Documents
-
-    # Abrir assembly si no está abierto
-    asm_doc = None
-    opened_asm_here = False
-    for i in range(1, docs.Count + 1):
-        d = docs.Item(i)
-        if getattr(d, "FullFileName", "").lower() == asm_path.lower():
-            asm_doc = d
-            break
-    if asm_doc is None:
-        asm_doc = docs.Open(asm_path)
-        opened_asm_here = True
-
-    # Recolectar rutas de piezas
-    part_paths = collect_part_paths(asm_doc)
-
-    rows = []
-    opened_here = []  # docs que abrimos aquí para luego cerrarlos
-
-    try:
-        for p in part_paths:
-            # Buscar si la pieza ya está abierta
-            part_doc = None
-            for i in range(1, docs.Count + 1):
-                d = docs.Item(i)
-                if getattr(d, "FullFileName", "").lower() == p.lower():
-                    part_doc = d
-                    break
-            if part_doc is None:
-                part_doc = docs.Open(p)
-                opened_here.append(part_doc)
-
-            rows.append(extract_props_from_part(part_doc))
-    finally:
-        # Cerrar piezas que abrimos aquí
-        for d in opened_here:
-            try:
-                d.Close(True)  # True = save changes; usa False si no quieres guardar
-            except:
-                pass
-        # Cerrar ensamblado si lo abrimos aquí
-        if opened_asm_here:
-            try:
-                asm_doc.Close(True)
-            except:
-                pass
-
-    return rows
-
-# ===== Ejemplo de uso =====
-if __name__ == "__main__":
-    asm_path = r"C:\Users\autom\OneDrive\Carpintería\Modelos Produccion\PRUEBA\Escritorios Oficina\Escritorio oficina.iam"
-    data = extract_properties_table_from_assembly(asm_path)
-    # `data` es list[dict] con keys HEADERS_PROPS, listo para tu tabla
-    for row in data:
-        print(row)
+# === Guardar a Excel ===
+out = Path("materiales_texturas_proveedor2.xlsx")
+df.to_excel(out, index=False)
+print(f"✅ Archivo creado: {out.resolve()}")
+print(f"   Totales -> filas: {len(df)} | materiales con data: {sum(bool(v) for v in AVAIL.values())} / {len(MATERIALES)}")
 

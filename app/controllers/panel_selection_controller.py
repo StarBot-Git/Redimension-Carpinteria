@@ -1,6 +1,8 @@
 import os
 from PySide6.QtCore import QObject, Qt
 from pathlib import Path
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QHBoxLayout, QPushButton
+from PySide6.QtCore import Qt
 
 # ====== Librerias propias ======
 
@@ -36,7 +38,7 @@ class SelectionPanelController(QObject):
         self.sp._material.currentTextChanged.connect(self.update_material_selection)
 
         # === Conexion logica | Material de canto ===
-        #self.sp._edge.currentTextChanged.connect(self.update_edge_selection)
+        self.sp._edge.currentTextChanged.connect(self.update_edge_selection)
 
 
     """
@@ -244,6 +246,11 @@ class SelectionPanelController(QObject):
             piezas = []
             model = self.win.metrics_view.model
 
+            finish = self.pick_finish(self.win)   # <-- aquí pedimos ST/RH/MDP/MDF
+            if not finish:
+                self.sp._material.setCurrentIndex(0)
+                return  # usuario canceló
+
             # === Obtener piezas seleccionadas ===
             for r in range(model.rowCount()):
                 idx_chk = model.index(r, 0)  # col "Ed"
@@ -259,14 +266,78 @@ class SelectionPanelController(QObject):
             for fila in rows_props:
                 if fila.get("Pieza") in piezas:
                     fila["Material"] = current_option
-                    print(f"✅ {fila['Pieza']} → nuevo material: {current_option}")
+                    fila["Texturizado"] = finish
+                    print(f"✅ {fila['Pieza']} → nuevo material: {current_option} | texturizado: {finish}")
 
             # === Refrescar tabla para reflejar cambios ===
             self.win.metrics_view.set_TableData(False)
             self.sp._material.setCurrentIndex(0)
         else:
-            pass
+            self.sp._material.setCurrentIndex(0)
+    
+    """
+    """
+    def update_edge_selection(self):
+        current_option = self._clean_piece(self.sp._edge.currentText())
+
+        # Solo aplica si estamos en vista Propiedades
+        if current_option and (bool(self.win.metrics_view.btn_Table.property("State")) == False):
+            piezas = []
+            model = self.win.metrics_view.model
+
+            # === Obtener piezas seleccionadas ===
+            for r in range(model.rowCount()):
+                idx_chk = model.index(r, 0)  # col "Ed"
+                if model.data(idx_chk, Qt.CheckStateRole) == Qt.Checked:
+                    idx_name = model.index(r, 1)  # col "Pieza"
+                    piezas.append(model.data(idx_name, Qt.DisplayRole))
+
+            print(f"🔹 Piezas seleccionadas: {piezas}")
+
+            # === Actualizar 'Material' en rows_props ===
+            rows_props = self.win.metrics_view.rows_props
+
+            for fila in rows_props:
+                if fila.get("Pieza") in piezas:
+                    fila["Material Canto"] = current_option
+                    print(f"✅ {fila['Pieza']} → nuevo material: {current_option}")
+
+            # === Refrescar tabla para reflejar cambios ===
+            self.win.metrics_view.set_TableData(False)
+            self.sp._edge.setCurrentIndex(0)
+        else:
+            self.sp._edge.setCurrentIndex(0)
+    
     # ---------- Utilidades ----------
+
+    """
+    """
+    def pick_finish(self, parent=None) -> str | None:
+        dlg = QDialog(parent)
+        dlg.setWindowTitle("Selecciona texturizado")
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(12)
+        lay.addWidget(QLabel("Confirma el texturizado del material:"), alignment=Qt.AlignLeft)
+
+        row = QHBoxLayout()
+        lay.addLayout(row)
+
+        chosen = {"val": None}
+        def choose(v):
+            chosen["val"] = v
+            dlg.accept()
+
+        for v in ("ST", "RH", "MDP", "MDF"):
+            b = QPushButton(v)
+            b.clicked.connect(lambda _, x=v: choose(x))
+            row.addWidget(b)
+
+        # Botón Cancelar (opcional)
+        cancel = QPushButton("Cancelar")
+        cancel.clicked.connect(dlg.reject)
+        lay.addWidget(cancel, alignment=Qt.AlignRight)
+
+        return chosen["val"] if dlg.exec() == QDialog.Accepted else None
 
     """
         proceed_CurrentProject():

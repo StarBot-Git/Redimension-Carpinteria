@@ -94,6 +94,12 @@ class SelectionPanelController(QObject):
             self.set_valid_comboBox(self.sp._model_Type, "void")
             self.sp._model.setEnabled(True)
             self.set_valid_comboBox(self.sp._model, "void")
+
+            self.win.topbar.button_quote.setEnabled(True)
+            self.win.topbar.button_CutSaw.setEnabled(True)
+            self.win.topbar.button_Information.setEnabled(True)
+
+            self.win.topbar.TP_Controller.project = current_option
         else:
             self.set_valid_comboBox(self.sp._project, "void")
             self.win.topbar._title.setText(settings.APP_NAME)
@@ -106,6 +112,10 @@ class SelectionPanelController(QObject):
             self.set_valid_comboBox(self.sp._material, "disabled")
             self.sp._edge.setEnabled(False)
             self.set_valid_comboBox(self.sp._edge, "disabled")
+
+            self.win.topbar.button_quote.setEnabled(False)
+            self.win.topbar.button_CutSaw.setEnabled(False)
+            self.win.topbar.button_Information.setEnabled(False)
 
     """
         on_model_type_changed():

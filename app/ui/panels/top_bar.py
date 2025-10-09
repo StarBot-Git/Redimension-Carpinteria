@@ -47,8 +47,10 @@ class TopBar(QFrame):
 
         # ========= Botones | Cotizado, Seccionado e Informacion =========
 
+        self.TP_Controller = TopBarController()
+
         self.button_quote = QPushButton("Cotizar")
-        self.button_quote.clicked.connect(TopBarController.cotizar)
+        self.button_quote.clicked.connect(self.TP_Controller.cotizar)
         self.set_TopBar_Button_Style(self.button_quote, icon_path=r"assets\icons\quote.svg")
 
         self.button_CutSaw = QPushButton("Seccionar")
@@ -94,7 +96,7 @@ class TopBar(QFrame):
 
         # === Estilo base | Button ===
         button.setObjectName("TopBar_Button")
-        button.setEnabled(True)
+        button.setEnabled(False)
         button.setCursor(Qt.PointingHandCursor)
 
         if icon_path:

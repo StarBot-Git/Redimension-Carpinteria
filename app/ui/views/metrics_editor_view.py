@@ -1,12 +1,15 @@
 import os
+import sys
 import win32com.client
 import pandas as pd
 from pathlib import Path
 from openpyxl import load_workbook
+import re
 
 from PySide6.QtWidgets import (
     QFrame, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QTableView, QSizePolicy, QHeaderView, QStyledItemDelegate
+    QLineEdit, QPushButton, QTableView, QSizePolicy, QHeaderView, QStyledItemDelegate,
+    QDialog, QComboBox, QApplication
 )
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QSize
@@ -306,7 +309,20 @@ class MetricsEditorView(QFrame):
 
         # === Exportar | Despiece ===
 
-        output_csv = f"{settings.ONEDRIVE_PROJECTS_DIR}\\{self.NOMBRE_PROYECTO}\\Despieces\\despiece-{self.model_name}.xlsx"
+        dir_base_file = f"{settings.ONEDRIVE_PROJECTS_DIR}\\{self.NOMBRE_PROYECTO}\\Despieces"
+        output_csv = f"{dir_base_file}\\despiece-{self.model_name}.xlsx"
+
+        if Path(output_csv).exists():
+             # Mostrar el diálogo para elegir/sobrescribir/guardar nuevo
+            nombre_archivo = self.pick_despiece_name(Path(dir_base_file), self.model_name, parent=self)
+
+            if not nombre_archivo:
+                print("Operación cancelada")
+                return
+            output_csv = str(Path(dir_base_file) / nombre_archivo)
+            print(output_csv)
+        else:
+            pass
 
         wb = load_workbook(r"assets\templates\despiece.xlsx")
         ws = wb["Despiece"] # Hoja donde esta el diseño
@@ -441,6 +457,127 @@ class MetricsEditorView(QFrame):
         self.btn_Table.style().unpolish(self.btn_Table)
         self.btn_Table.style().polish(self.btn_Table)
         self.btn_Table.update()
+
+    # ---------- utilities ----------
+
+    def _extract_suffixes(self, base_dir: Path, prefix: str) -> list[str]:
+        """Busca archivos 'prefix*.xlsx' y devuelve sufijos existentes.
+        Ej: 'despiece-mueble_2.xlsx' -> '2'; 'despiece-mueble.xlsx' -> '' (vacío)"""
+        suffixes = set()
+        for p in base_dir.glob(f"{prefix}*.xlsx"):
+            m = re.match(rf"^{re.escape(prefix)}(?:_(.+))?\.xlsx$", p.name, flags=re.IGNORECASE)
+            if m:
+                suffixes.add(m.group(1) or "")  # '' representa “sin sufijo”
+        # Orden: primero vacío, luego alfabético
+        return sorted(suffixes, key=lambda s: (s != "", s.lower()))
+
+    def pick_despiece_name(self, base_dir: str | Path, mueble_actual: str, parent=None) -> str | None:
+        """
+        Muestra un diálogo:
+        despiece-{mueble}_ [combo editable con sugerencias] .xlsx
+        Retorna el NOMBRE DE ARCHIVO (no la ruta) elegido/creado, p. ej. 'despiece-mueble_apto65.xlsx'
+        o None si se cancela.
+        """
+        base_dir = Path(base_dir)
+        prefix = f"despiece-{mueble_actual}"
+
+        # Sugerencias de sufijos existentes en carpeta
+        existing = self._extract_suffixes(base_dir, prefix)
+
+        app = QApplication.instance() or QApplication(sys.argv)
+        dlg = QDialog(parent)
+        dlg.setWindowTitle("Guardar despiece")
+        dlg.setModal(True)
+
+        main = QVBoxLayout(dlg)
+
+        # Línea de formato fijo: prefix _ [combo] .xlsx
+        row = QHBoxLayout()
+        lbl_pre = QLabel(prefix + "_")
+        lbl_pre.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+
+        cb = QComboBox()
+        cb.setEditable(True)
+        cb.setInsertPolicy(QComboBox.NoInsert)
+        cb.setMinimumWidth(220)
+        cb.setPlaceholderText("opcional (p. ej. 2, apto65)")
+
+        # Cargar sugerencias (mostramos '' como '(vacío)' para indicar “sin sufijo”)
+        for s in existing:
+            cb.addItem("(vacío)" if s == "" else s)
+
+        lbl_post = QLabel(".xlsx")
+        lbl_post.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+
+        row.addWidget(lbl_pre)
+        row.addWidget(cb, stretch=1)
+        row.addWidget(lbl_post)
+        main.addSpacing(15)
+        main.addLayout(row)
+
+        # Mensaje de estado (guardará vs sobrescribirá)
+        hint = QLabel()
+        hint.setWordWrap(True)
+        main.addSpacing(15)
+        main.addWidget(hint)
+
+        # Botonera
+        buttons = QHBoxLayout()
+        btn_ok = QPushButton("Guardar")
+        btn_cancel = QPushButton("Cancelar")
+        buttons.addStretch(1)
+        buttons.addWidget(btn_ok)
+        buttons.addWidget(btn_cancel)
+        main.addSpacing(15)
+        main.addLayout(buttons)
+
+        def current_suffix_text() -> str:
+            t = cb.currentText().strip()
+            # Si el usuario seleccionó "(vacío)" lo tratamos como vacío real
+            if t == "(vacío)":
+                t = ""
+            return t
+
+        def current_filename() -> str:
+            suf = current_suffix_text()
+            return f"{prefix}.xlsx" if suf == "" else f"{prefix}_{suf}.xlsx"
+
+        def update_state():
+            name = current_filename()
+            exists = (base_dir / name).exists()
+            btn_ok.setText("Sobrescribir" if exists else "Guardar")
+            if exists:
+                hint.setText(f"Se sobrescribirá: <b>{name}</b>")
+                hint.setStyleSheet("color:#e0b800;")  # amarillito aviso
+            else:
+                hint.setText(f"Se guardará como: <b>{name}</b>")
+                hint.setStyleSheet("color:#8fbf88;")  # verdecito suave
+
+        # Señales de cambio
+        cb.currentTextChanged.connect(lambda *_: update_state())
+        cb.currentIndexChanged.connect(lambda *_: update_state())
+
+        # Acciones
+        def accept():
+            dlg.accept()
+
+        def reject():
+            dlg.reject()
+
+        btn_ok.clicked.connect(accept)
+        btn_cancel.clicked.connect(reject)
+
+        # Estado inicial
+        if existing:
+            # Preseleccionar '(vacío)' si existe base sin sufijo; si no, el primer sugerido
+            idx = existing.index("") if "" in existing else 0
+            cb.setCurrentIndex(idx)
+        update_state()
+
+        # Ejecutar
+        if dlg.exec():
+            return current_filename()  # SOLO nombre, como pediste
+        return None
 
     # ---------- Breakdown Format ----------
 

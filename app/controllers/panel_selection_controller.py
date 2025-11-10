@@ -10,7 +10,13 @@ from app.services.repository_DB import RepositoryDB
 from app.config import settings
 
 class SelectionPanelController(QObject):
-    _EDGES = ["ABS 0.45 mm", "PVC 1.0 mm", "PVC 2.0 mm"]
+    _EDGES = [
+        "FLEXIBLE PV", "SEMI RIGIDO PV", "RIGIDO PV",
+        "FLEXIBLE IN", "SEMI RIGIDO IN", "RIGIDO IN",
+        "FLEXIBLE TE", "SEMI RIGIDO TE", "RIGIDO TE",
+        "FLEXIBLE SC", "SEMI RIGIDO SC", "RIGIDO SC",
+        "FLEXIBLE RE", "SEMI RIGIDO RE", "RIGIDO RE",
+    ]
 
     """
         class SelectionPanelController():
@@ -98,6 +104,7 @@ class SelectionPanelController(QObject):
             self.win.topbar.button_quote.setEnabled(True)
             self.win.topbar.button_CutSaw.setEnabled(True)
             self.win.topbar.button_Information.setEnabled(True)
+            self.win.topbar.button_Folder.setEnabled(True)
 
             self.win.topbar.TP_Controller.project = current_option
         else:
@@ -116,6 +123,7 @@ class SelectionPanelController(QObject):
             self.win.topbar.button_quote.setEnabled(False)
             self.win.topbar.button_CutSaw.setEnabled(False)
             self.win.topbar.button_Information.setEnabled(False)
+            self.win.topbar.button_Folder.setEnabled(False)
 
     """
         on_model_type_changed():
@@ -208,6 +216,7 @@ class SelectionPanelController(QObject):
                 self.win.metrics_view.btn_Load.setEnabled(bool(m))
                 self.win.metrics_view.btn_Save.setEnabled(bool(m))
                 self.win.metrics_view.btn_Table.setEnabled(bool(m))
+                self.win.metrics_view.btn_Refresh.setEnabled(bool(m))
 
                 # === Fin de la barra de progreso ===
                 self.win.sidebar.loading.set_Progress(9)
@@ -240,6 +249,7 @@ class SelectionPanelController(QObject):
         self.win.metrics_view.btn_Load.setEnabled(False)
         self.win.metrics_view.btn_Save.setEnabled(False)
         self.win.metrics_view.btn_Table.setEnabled(False)
+        self.win.metrics_view.btn_Refresh.setEnabled(False)
 
         self.win.metrics_view.set_TableData(True)
 

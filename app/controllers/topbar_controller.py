@@ -2,6 +2,7 @@ from app.config import settings
 from pathlib import Path
 import pandas as pd
 import shutil
+import os
 
 class TopBarController():
     def __init__(self):
@@ -84,6 +85,18 @@ class TopBarController():
     def seccionar():
         print("🧩 Seccionando...")
 
-    @staticmethod
-    def informacion():
-        print("ℹ️ Mostrando información...")
+    def informacion(self):
+        print("Mostrando informacion del proyecto...")
+    
+    def carpeta(self):
+        dir_project_path = f"{settings.ONEDRIVE_PROJECTS_DIR}\\{self.project}"
+
+        print(dir_project_path)
+
+        if not os.path.exists(dir_project_path):
+            print("El directorio del proyecto no existe.")
+            return None
+
+        project_dir = os.path.abspath(dir_project_path)
+
+        os.startfile(project_dir)

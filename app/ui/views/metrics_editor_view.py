@@ -68,10 +68,19 @@ class MetricsEditorView(QFrame):
         self.btn_Table.clicked.connect(self.toggle_table)
         self.btn_Table.setProperty("State", True) # True -> Metricas
         self.set_Button_Style(self.btn_Table, icon_path="assets/icons/toggle_State1.svg")
+
+        # --- Boton | Actualizar contenido ---
+
+        self.btn_Refresh = QPushButton("")
+        self.btn_Refresh.clicked.connect(self.on_refresh_data)
+        self.set_Button_Style(self.btn_Refresh, icon_path="assets/icons/refresh.svg")
+
+
         
         root_sup.addWidget(self.title)
         root_sup.addStretch(1)
         root_sup.addWidget(self.btn_Table)
+        root_sup.addWidget(self.btn_Refresh)
 
         root.addLayout(root_sup)
 
@@ -458,6 +467,10 @@ class MetricsEditorView(QFrame):
         self.btn_Table.style().polish(self.btn_Table)
         self.btn_Table.update()
 
+    """
+    """
+    def on_refresh_data(self):
+        print("Refrescando datos...")
     # ---------- utilities ----------
 
     def _extract_suffixes(self, base_dir: Path, prefix: str) -> list[str]:
@@ -849,57 +862,65 @@ class MetricsEditorView(QFrame):
             Funcion encargada de cargar los datos(metricas y propiedades) del modelo seleccionado.
     """
     def load_inventor_model(self, model_path: str, loading_Bar):
+        import os
+        from pathlib import Path
+        import win32com.client
+
         print(f"Cargando modelo de Inventor desde: {model_path}")
 
-        # === Conexion con Inventor ===
-
+        # === Conexión con Inventor ===
         loading_Bar.set_Text("Cargando modelo de Inventor...")
         loading_Bar.set_Progress(4)
 
-        self.inventor = win32com.client.Dispatch("Inventor.Application")
-        self.inventor.Visible = False  # No mostrar la ventana de Inventor inicialmente
+        # Instancia nueva para evitar “enganchar” una abierta con estado raro
+        self.inventor = win32com.client.DispatchEx("Inventor.Application")
+        self.inventor.Visible = False
 
         loading_Bar.set_Text("Abriendo Skeleton...")
         loading_Bar.set_Progress(5)
 
         # === Apertura Skeleton Part ===
         self.model_path = model_path
-        skeleton_path = f"{model_path}\\Skeleton Part.ipt"
+        skeleton_path = os.path.join(model_path, "Skeleton Part.ipt")  # respeta tu nombre actual
 
-        if os.path.exists(skeleton_path):
-            print(f"✅ Skeleteon abierto")
-            self.skeleton_doc = self.inventor.Documents.Open(skeleton_path)
-        else:
-            print(f"❌ No se encontró el archivo Skeleton del modelo")
+        if not os.path.exists(skeleton_path):
+            print("❌ No se encontró el archivo Skeleton del modelo")
             return
-        
-        loading_Bar.set_Text("Extrayendo parametro...")
+
+        print("✅ Skeleton abierto")
+        self.skeleton_doc = self.inventor.Documents.Open(skeleton_path)
+
+        loading_Bar.set_Text("Extrayendo parámetros...")
         loading_Bar.set_Progress(6)
 
-        params = self.skeleton_doc.ComponentDefinition.Parameters       
+        # --- Sólo parámetros de usuario (evita d0, d1, etc.)
+        params_root = self.skeleton_doc.ComponentDefinition.Parameters
+        user_params = params_root.UserParameters
+        uom = self.skeleton_doc.UnitsOfMeasure  # para convertir si hace falta
 
-        print("Parámetros del modelo:")
-        for param in params:
-            print(f"- {param.Name}: {param.Value} {param.Units}")
-
-        # ==== Fila de metricas ====
+        print("Parámetros de usuario del modelo:")
         rows = []
-        for p in params:
-            nombre = getattr(p, "Name", None) or getattr(p, "name", "")
-            valor  = getattr(p, "Value", None) or getattr(p, "value", "")
-            unidad = getattr(p, "Units", None) or getattr(p, "units", "")
 
-            if any(other.Name in p.Expression  and other.Name != param.Name for other in params):
-                print(f"Parametro '{nombre}' depende de otro, se ignora.")
-                continue
+        # Colecciones COM de Inventor son 1-based
+        for i in range(1, user_params.Count + 1):
+            p = user_params.Item(i)
+            nombre = p.Name
+            expr = getattr(p, "Expression", "")  # p.ej. "800 mm"
+            unidad = getattr(p, "Units", "")     # p.ej. "mm"
+            valor = getattr(p, "Value", None)    # valor en unidades internas de Inventor
 
-            if isinstance(valor, (int, float)):
-                valor = valor * 10
+            # Si quieres mostrar siempre en mm (ejemplo), convierte:
+            # valor_mm = uom.ConvertUnits(valor, uom.InternalUnits, "mm")
+            # y en la tabla pones unidad="mm" y valor=valor_mm
+
+            valor = valor * 10  # convertir cm a mm
+            print(f"- {nombre}: {expr}  (Value={valor}, Units={unidad})")
 
             rows.append({
                 "Parametro": str(nombre),
-                "Valor": valor,
-                "Unidad": unidad,
+                "Valor": valor,      # o valor_mm si conviertes
+                "Unidad": unidad,    # o "mm" si conviertes
+                "Expresion": expr,
             })
 
         self.rows_metrics = rows
@@ -907,8 +928,7 @@ class MetricsEditorView(QFrame):
         loading_Bar.set_Text("Extrayendo Propiedades de piezas...")
         loading_Bar.set_Progress(7)
 
-        # ==== Fila de propiedades ====
-            
+        # ==== Ensamble ====
         folder = Path(self.model_path)
         iam_files = list(folder.glob("*.iam"))
 
@@ -917,9 +937,9 @@ class MetricsEditorView(QFrame):
             print(f"✅ Ensamble encontrado: {asm_path}")
             self.rows_props = self.extract_properties_table_from_assembly(asm_path)
         else:
-            asm_path = None
             print("❌ No se encontró ningún archivo .iam")
             self.rows_props = []
+
     
     # ---------- Inventor | Propiedades del ensamble ----------
 
@@ -1022,66 +1042,113 @@ class MetricsEditorView(QFrame):
         extract_properties_table_from_assembly():
     """
     def extract_properties_table_from_assembly(self, asm_path: str) -> list[dict]:
-        """
-        Abre el .iam (si no está abierto), recorre todas las .ipt referenciadas y
-        devuelve list[dict] con HEADERS_PROPS.
-        """
-        
-        inv = self.inventor
-        # No forzamos visible; déjalo como tengas tu instancia principal
-        # inv.Visible = False
+        import os, time
+        from pathlib import Path
 
+        inv = self.inventor
         docs = inv.Documents
 
-        # Abrir assembly si no está abierto
+        print(f"🔧 Extrayendo propiedades desde ensamblado: {asm_path}")
+
+        # ----------------------------------------------------------------------
+        # === 1️⃣ Asegurarse de que el ensamblado esté abierto ===
+        # ----------------------------------------------------------------------
         asm_doc = None
         opened_asm_here = False
+        asm_path_lower = asm_path.lower()
+
         for i in range(1, docs.Count + 1):
             d = docs.Item(i)
-            if getattr(d, "FullFileName", "").lower() == asm_path.lower():
+            if getattr(d, "FullFileName", "").lower() == asm_path_lower:
                 asm_doc = d
                 break
+
         if asm_doc is None:
+            print(f"🟡 Abriendo ensamblado {asm_path} ...")
             asm_doc = docs.Open(asm_path)
             opened_asm_here = True
+        else:
+            print(f"✅ Ensamble ya estaba abierto.")
 
-        # Recolectar rutas de piezas
+        # ----------------------------------------------------------------------
+        # === 2️⃣ Recolectar rutas de piezas ===
+        # ----------------------------------------------------------------------
         part_paths = self.collect_part_paths(asm_doc)
 
+        # Eliminar duplicados y limpiar
+        part_paths = [p for p in dict.fromkeys(part_paths) if p and p.lower().endswith(".ipt")]
+
+        print(f"🧩 Piezas detectadas: {len(part_paths)}")
+
         rows = []
-        opened_here = []  # docs que abrimos aquí para luego cerrarlos
+        opened_here = []
 
+        # ----------------------------------------------------------------------
+        # === 3️⃣ Iterar las piezas ===
+        # ----------------------------------------------------------------------
         try:
-            for p in part_paths:
-                # Buscar si la pieza ya está abierta
+            # Congelar lista de docs abiertos antes de empezar (para evitar cambio de índice)
+            open_docs_map = {docs.Item(i).FullFileName.lower(): docs.Item(i)
+                            for i in range(1, docs.Count + 1)}
 
-                if "skeleton" in Path(p).name.lower():
-                    print(f"↪ Omitida por filtro: {p}")
+            for p in part_paths:
+                p_lower = p.lower()
+                nombre_archivo = Path(p).name
+
+                # Filtro por Skeleton o vacío
+                if "skeleton" in nombre_archivo.lower():
+                    print(f"↪ Omitida por filtro: {nombre_archivo}")
                     continue
 
-                part_doc = None
-                for i in range(1, docs.Count + 1):
-                    d = docs.Item(i)
-                    if getattr(d, "FullFileName", "").lower() == p.lower():
-                        part_doc = d
-                        break
-                if part_doc is None:
-                    part_doc = docs.Open(p)
-                    opened_here.append(part_doc)
+                # Buscar si ya está abierto
+                part_doc = open_docs_map.get(p_lower, None)
 
-                rows.append(self.extract_props_from_part(part_doc))
+                if part_doc is None:
+                    if not os.path.exists(p):
+                        print(f"⚠️ No existe el archivo: {p}")
+                        continue
+
+                    print(f"📂 Abriendo pieza: {nombre_archivo}")
+                    t0 = time.time()
+                    try:
+                        part_doc = docs.Open(p)
+                    except Exception as e:
+                        print(f"❌ Error abriendo {nombre_archivo}: {e}")
+                        continue
+                    print(f"✅ Abierta en {time.time() - t0:.2f}s")
+                    opened_here.append(part_doc)
+                else:
+                    print(f"✅ Ya abierta: {nombre_archivo}")
+
+                # Extraer propiedades
+                try:
+                    props = self.extract_props_from_part(part_doc)
+                    if props:
+                        rows.append(props)
+                except Exception as e:
+                    print(f"⚠️ Error leyendo propiedades de {nombre_archivo}: {e}")
+
         finally:
-            # Cerrar piezas que abrimos aquí
+            # ------------------------------------------------------------------
+            # === 4️⃣ Cerrar documentos abiertos aquí ===
+            # ------------------------------------------------------------------
             for d in opened_here:
                 try:
-                    d.Close(True)  # True = save changes; usa False si no quieres guardar
-                except:
-                    pass
-            # Cerrar ensamblado si lo abrimos aquí
+                    name = Path(getattr(d, "FullFileName", "")).name
+                    print(f"🧹 Cerrando {name}")
+                    d.Close(False)  # False: no guardar, evita bloqueos
+                except Exception as e:
+                    print(f"⚠️ Error cerrando doc: {e}")
+
+            # Esperar un poco antes de cerrar el ensamblado (si lo abrimos aquí)
             if opened_asm_here:
                 try:
-                    asm_doc.Close(True)
-                except:
-                    pass
+                    print("🧹 Cerrando ensamblado principal...")
+                    time.sleep(0.2)
+                    asm_doc.Close(False)
+                except Exception as e:
+                    print(f"⚠️ Error cerrando ensamblado: {e}")
 
+        print(f"✅ Total piezas procesadas: {len(rows)}")
         return rows
+

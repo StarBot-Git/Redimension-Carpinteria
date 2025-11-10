@@ -57,13 +57,18 @@ class TopBar(QFrame):
         #self.button_CutSaw.clicked.connect()
         self.set_TopBar_Button_Style(self.button_CutSaw, icon_path=r"assets\icons\saw.svg")
 
+        self.button_Folder = QPushButton("")
+        self.button_Folder.clicked.connect(self.TP_Controller.carpeta)
+        self.set_TopBar_Button_Style(self.button_Folder, icon_path=r"assets\icons\folder.svg")
+
         self.button_Information = QPushButton("")
-        #self.button_Information.clicked.connect()
+        #self.button_Information.clicked.connect(self.TP_Controller.informacion)
         self.set_TopBar_Button_Style(self.button_Information, icon_path=r"assets\icons\info.svg")
 
         aux_layout.addStretch(1)
         aux_layout.addWidget(self.button_quote)
         aux_layout.addWidget(self.button_CutSaw)
+        aux_layout.addWidget(self.button_Folder)
         aux_layout.addWidget(self.button_Information)
 
         # ========= Inicializar | Breadcrumbs ============
